@@ -2,25 +2,32 @@ package cl.duocuc.model;
 
 public class PedidoExpress extends Pedido {
     private String tienda;
-    private double distancia;
 
-    public PedidoExpress(String idPedido, String cliente, String direccion, String tienda, double distancia) {
-        super(idPedido, cliente, direccion);
+    public PedidoExpress(int idPedido, String direccionEntrega, double distanciaKm, String tienda) {
+        super(idPedido, direccionEntrega, distanciaKm);
         this.tienda = tienda;
-        this.distancia = distancia;
     }
 
     public String getTienda() { return tienda; }
-    public double getDistancia() { return distancia; }
+
+    // Regla: 10 min base; si distancia > 5 km, se agregan 5 min extra
+    @Override
+    public int calcularTiempoEntrega() {
+        int tiempo = 10;
+        if (getDistanciaKm() > 5) {
+            tiempo += 5;
+        }
+        return tiempo;
+    }
 
     @Override
     public String asignarRepartidor() {
-        return "Repartidor express asignado al pedido " + getIdPedido()
-            + " desde la tienda " + tienda + " (distancia: " + distancia + " km)";
+        return "Repartidor express asignado al pedido #" + String.format("%03d", getIdPedido())
+            + " desde la tienda " + tienda + " (distancia: " + getDistanciaKm() + " km)";
     }
 
     public String asignarRepartidor(int horaLimite) {
-        return "Repartidor express asignado al pedido " + getIdPedido()
+        return "Repartidor express asignado al pedido #" + String.format("%03d", getIdPedido())
             + " desde " + tienda + " — debe entregar antes de las " + horaLimite + ":00 hrs";
     }
 }
