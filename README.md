@@ -3,10 +3,8 @@
 # 🚚 SpeedFast
 
 Aplicación Java de consola que simula la gestión de pedidos de una empresa de
-despachos, desarrollada como **evaluación sumativa 1** de la asignatura
-**Programación Orientada a Objetos 2**. El proyecto aplica herencia,
-polimorfismo, sobrecarga, clases abstractas e interfaces sobre la jerarquía de
-`Pedido`.
+despachos, desarrollada para la asignatura
+**Programación Orientada a Objetos 2**.
 
 ## 👤 Autor del proyecto
 
@@ -21,30 +19,11 @@ polimorfismo, sobrecarga, clases abstractas e interfaces sobre la jerarquía de
 | Carpeta | Descripción |
 | --- | --- |
 | `semana3/` **(sumativa 1)** | Entrega evaluada: jerarquía de pedidos, `ControladorDeEnvios` y las interfaces `Despachable`, `Cancelable` y `Rastreable` |
+| `semana4/` **(formativa)** | Entregas concurrentes: la clase `Repartidor` (`Runnable`) ejecutada con `ExecutorService` |
 
-La carpeta `semana3/` (sumativa 1) es un proyecto Maven con paquete base
-`cl.duocuc`.
+Cada carpeta es un módulo Maven con paquete base `cl.duocuc`.
 
 ---
-
-## 🧱 Estructura del código
-
-```
-cl.duocuc
-├── app
-│   ├── Main.java                  # Punto de entrada y demostración por consola
-│   └── ControladorDeEnvios.java   # Despacho, cancelación e historial
-├── model
-│   ├── Pedido.java                # Clase abstracta base
-│   ├── PedidoComida.java          # Restaurante + tiempo de preparación
-│   ├── PedidoEncomienda.java      # Peso + volumen del paquete
-│   └── PedidoExpress.java         # Tienda de origen, entrega reducida
-└── interfaces
-    ├── Despachable.java           # despachar()
-    ├── Cancelable.java            # cancelar()
-    └── Rastreable.java            # verHistorial()
-```
-
 ### Cálculo del tiempo de entrega
 
 Cada subclase implementa `calcularTiempoEntrega()` con su propia regla:
@@ -70,6 +49,29 @@ Cada subclase implementa `calcularTiempoEntrega()` con su propia regla:
   métodos de acceso.
 - **Interfaces:** `ControladorDeEnvios` implementa `Despachable`, `Cancelable`
   y `Rastreable`, separando los contratos de despacho, cancelación y rastreo.
+
+---
+
+## 🧵 Semana 4: entregas en paralelo con hilos
+
+La carpeta `semana4/` reutiliza la jerarquía de `Pedido` y las tres interfaces, y
+agrega la clase `Repartidor`, que implementa `Runnable` además de `Despachable`,
+`Cancelable` y `Rastreable`:
+
+- Cada repartidor tiene su nombre y su lista de pedidos, y entrega de forma
+  secuencial dentro de su propio hilo (`run()` recorre los pedidos y llama a
+  `despachar()`).
+- El traslado se simula con `Thread.sleep()` usando valores aleatorios entre 1 y
+  3 segundos, la `InterruptedException` se maneja restaurando el estado de
+  interrupción del hilo.
+- `Main` instancia tres repartidores con dos pedidos cada uno y los ejecuta en
+  paralelo con `Executors.newFixedThreadPool(3)`, cerrando el pool con
+  `shutdown()` y `awaitTermination()`.
+- Al terminar se muestra el historial de cada repartidor y una comparación entre
+  el tiempo total secuencial y el tiempo real en paralelo, para evidenciar el
+  impacto de la concurrencia en el rendimiento.
+- Un último caso ejecuta un repartidor en un `Thread` directo y lo detiene con
+  `cancelar()`: la entrega en curso se completa y las restantes se descartan.
 
 ---
 
