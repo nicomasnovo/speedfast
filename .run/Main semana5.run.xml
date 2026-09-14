@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Main semana5" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="cl.duocuc.app.Main" />
+    <module name="semana5" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

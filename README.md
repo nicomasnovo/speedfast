@@ -18,60 +18,87 @@ despachos, desarrollada para la asignatura
 
 | Carpeta | Descripción |
 | --- | --- |
-| `semana3/` **(sumativa 1)** | Entrega evaluada: jerarquía de pedidos, `ControladorDeEnvios` y las interfaces `Despachable`, `Cancelable` y `Rastreable` |
-| `semana4/` **(formativa)** | Entregas concurrentes: la clase `Repartidor` (`Runnable`) ejecutada con `ExecutorService` |
+| `semana2/` | Jerarquía de pedidos y conceptos base de POO |
+| `semana3/` **(sumativa 1)** | `ControladorDeEnvios` y las interfaces `Despachable`, `Cancelable` y `Rastreable` |
+| `semana4/` | Entregas concurrentes con `Repartidor` (`Runnable`) y `ExecutorService` |
+| `semana5/` **(entrega actual)** | Sincronización del acceso a la `ZonaDeCarga` como recurso compartido |
 
-Cada carpeta es un módulo Maven con paquete base `cl.duocuc`.
-
----
-### Cálculo del tiempo de entrega
-
-Cada subclase implementa `calcularTiempoEntrega()` con su propia regla:
-
-| Tipo de pedido | Regla | Ejemplo |
-| --- | --- | --- |
-| `PedidoComida` | 15 min base + 2 min por km | 4 km → 23 min |
-| `PedidoEncomienda` | 20 min base + 1,5 min por km | 7 km → 30 min |
-| `PedidoExpress` | 10 min base, +5 min si supera los 5 km | 7 km → 15 min |
-
-### Conceptos de POO demostrados
-
-- **Clase abstracta:** `Pedido` define los datos comunes de la entrega y deja
-  `calcularTiempoEntrega()` como método abstracto.
-- **Herencia:** `PedidoComida`, `PedidoEncomienda` y `PedidoExpress` extienden
-  `Pedido` y agregan sus propios atributos.
-- **Polimorfismo:** se recorre un arreglo `Pedido[]` invocando
-  `mostrarResumen()` y `asignarRepartidor()`, y cada objeto responde con su
-  propio comportamiento.
-- **Sobrecarga:** `asignarRepartidor()` convive con `asignarRepartidor(String
-  nombre)`, que permite indicar el repartidor a cargo de la entrega.
-- **Encapsulamiento:** todos los atributos son privados y se exponen mediante
-  métodos de acceso.
-- **Interfaces:** `ControladorDeEnvios` implementa `Despachable`, `Cancelable`
-  y `Rastreable`, separando los contratos de despacho, cancelación y rastreo.
+Cada carpeta es un módulo Maven con paquete base `cl.duocuc`. Este README
+documenta la entrega de **semana 5**.
 
 ---
 
-## 🧵 Semana 4: entregas en paralelo con hilos
+## 🔒 Semana 5: sincronización del acceso a la zona de carga
 
-La carpeta `semana4/` reutiliza la jerarquía de `Pedido` y las tres interfaces, y
-agrega la clase `Repartidor`, que implementa `Runnable` además de `Despachable`,
-`Cancelable` y `Rastreable`:
+Varios repartidores de SpeedFast acceden **al mismo tiempo** a una única zona de
+carga para retirar pedidos. El objetivo de la actividad es sincronizar ese acceso
+para que **dos repartidores nunca retiren el mismo pedido** y no se produzcan
+condiciones de carrera.
 
-- Cada repartidor tiene su nombre y su lista de pedidos, y entrega de forma
-  secuencial dentro de su propio hilo (`run()` recorre los pedidos y llama a
-  `despachar()`).
-- El traslado se simula con `Thread.sleep()` usando valores aleatorios entre 1 y
-  3 segundos, la `InterruptedException` se maneja restaurando el estado de
-  interrupción del hilo.
-- `Main` instancia tres repartidores con dos pedidos cada uno y los ejecuta en
-  paralelo con `Executors.newFixedThreadPool(3)`, cerrando el pool con
-  `shutdown()` y `awaitTermination()`.
-- Al terminar se muestra el historial de cada repartidor y una comparación entre
-  el tiempo total secuencial y el tiempo real en paralelo, para evidenciar el
-  impacto de la concurrencia en el rendimiento.
-- Un último caso ejecuta un repartidor en un `Thread` directo y lo detiene con
-  `cancelar()`: la entrega en curso se completa y las restantes se descartan.
+### Clases del módulo
+
+| Clase | Rol |
+| --- | --- |
+| `Pedido` | Datos de la entrega: `id`, `direccionEntrega` y `estado`, con constructor, getters, setters, `setEstado(EstadoPedido)`, la sobrecarga `setEstado(String)` y `toString()` |
+| `EstadoPedido` (enum) | `PENDIENTE`, `EN_REPARTO`, `ENTREGADO`: limita el estado a valores válidos y evita los errores de tipeo de un `String` |
+| `ZonaDeCarga` | Recurso compartido entre los hilos, con `agregarPedido()` y `retirarPedido()` |
+| `Repartidor` | `Runnable` con su `nombre` y la referencia a la `ZonaDeCarga`: retira un pedido, lo pasa a `EN_REPARTO`, simula el traslado y lo deja `ENTREGADO` |
+| `Main` | Crea la zona de carga, deja 6 pedidos y lanza 3 repartidores concurrentes |
+
+### Ciclo de vida del pedido
+
+```
+PENDIENTE  ──(el repartidor lo retira)──▶  EN_REPARTO  ──(fin del traslado)──▶  ENTREGADO
+```
+
+### Mecanismos de sincronización aplicados
+
+- **`BlockingQueue<Pedido>`:** los pedidos disponibles viven en un
+  `LinkedBlockingQueue` dentro de `ZonaDeCarga`. Su operación `poll()` es
+  atómica, de modo que cada pedido se entrega a un solo hilo: nunca hay retiro
+  doble ni entregas duplicadas. El `poll()` con tiempo de espera también permite
+  que un repartidor aguarde por un pedido y termine cuando la zona queda vacía.
+- **`synchronized`:** protege el registro de pedidos y el contador de entregas de
+  `ZonaDeCarga`, y los accesos al `estado` de `Pedido`, que se escribe desde el
+  hilo del repartidor y se lee desde el hilo principal.
+- **`ExecutorService`:** `Main` lanza los tres repartidores con
+  `Executors.newFixedThreadPool(3)` y espera a que todos terminen con
+  `shutdown()` y `awaitTermination()` antes de mostrar el resumen.
+
+### ▶️ Cómo ejecutar
+
+```bash
+mvn -pl semana5 -am clean compile
+java -cp semana5/target/classes cl.duocuc.app.Main
+```
+
+En IntelliJ IDEA también está disponible la configuración de ejecución
+**«Main semana5»**.
+
+### Salida esperada
+
+Los pedidos ingresan en estado `PENDIENTE` y los tres repartidores se intercalan
+—el orden cambia en cada ejecución, porque depende de la planificación de los
+hilos—:
+
+```
+[ZonaDeCarga] Pedido #101 disponible
+[Repartidor: Luis] Retirando pedido #101...
+[Repartidor: Camila] Retirando pedido #102...
+[Repartidor: Pedro] Retirando pedido #103...
+[Repartidor: Luis] Entregando pedido #101...
+[Repartidor: Camila] Entregando pedido #102...
+[Repartidor: Pedro] Entregando pedido #103...
+[Repartidor: Luis] Pedido #101 entregado ✓
+[Repartidor: Camila] Pedido #102 entregado ✓
+[Repartidor: Pedro] Pedido #103 entregado ✓
+```
+
+Al finalizar, `Main` muestra cuántos pedidos entregó cada repartidor, el estado
+final de cada pedido y confirma el resultado con el mensaje
+**«Todos los pedidos han sido entregados correctamente.»**, que solo se imprime
+si las entregas registradas coinciden con los pedidos ingresados y todos quedaron
+en estado `ENTREGADO`.
 
 ---
 
