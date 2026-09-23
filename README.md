@@ -41,12 +41,12 @@ Para lograrlo la aplicación quedó separada en tres capas, siguiendo el patrón
 MVC. El modelo no sabe que existe Swing y las ventanas no manipulan pedidos
 directamente: todo pasa por los controladores.
 
-| Paquete | Qué hay ahí |
-| --- | --- |
-| `cl.duocuc.model` | `Pedido`, `Repartidor`, `ZonaDeCarga` y los enums `EstadoPedido` y `TipoPedido` |
+| Paquete                 | Qué hay ahí |
+|-------------------------| --- |
+| `cl.duocuc.model`       | `Pedido`, `Repartidor`, `ZonaDeCarga` y los enums `EstadoPedido` y `TipoPedido` |
 | `cl.duocuc.controllers` | `PedidoController` y `RepartidorController`: validan los datos y coordinan el reparto |
-| `cl.duocuc.view` | Las cuatro ventanas Swing |
-| `cl.duocuc.Main` | Crea la zona de carga, los controladores y levanta la ventana principal |
+| `cl.duocuc.view`        | Las cuatro ventanas Swing |
+| `cl.duocuc.main.Main`   | Crea la zona de carga, los controladores y levanta la ventana principal |
 
 ### Las ventanas
 
