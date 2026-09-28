@@ -5,6 +5,11 @@ import cl.duocuc.model.Pedido;
 import cl.duocuc.model.TipoPedido;
 import cl.duocuc.model.ZonaDeCarga;
 
+import javax.swing.JOptionPane;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,10 +18,32 @@ import java.util.List;
  * los registra o consulta en la {@link ZonaDeCarga}, que es el almacenamiento en
  * memoria del sistema.
  * <p>
+ * Desde la semana 7 los pedidos además se guardan en MySQL: este controlador es
+ * el único punto que habla con la base de datos (mediante
+ * {@link ConexionBD#obtenerConexion()}), de modo que las vistas sigan trabajando
+ * solo con objetos {@link Pedido}. El flujo es
+ * MySQL → controlador → zona de carga → Swing.
+ * <p>
  * Todas las vistas deben compartir la misma instancia de este controlador para
  * trabajar sobre los mismos pedidos.
  */
 public class PedidoController {
+
+    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
+    /** Consulta que trae todos los pedidos guardados. */
+    private static final String SQL_SELECT =
+            "SELECT id, direccion, tipo, estado FROM pedido ORDER BY id";
+
+    /** Inserción de un pedido nuevo. */
+    private static final String SQL_INSERT =
+            "INSERT INTO pedido (id, direccion, tipo, estado) VALUES (?, ?, ?, ?)";
+
+    /** Actualización de los datos de un pedido existente. */
+    private static final String SQL_UPDATE =
+            "UPDATE pedido SET direccion = ?, tipo = ?, estado = ? WHERE id = ?";
+
+    /** Eliminación de un pedido por su identificador. */
+    private static final String SQL_DELETE = "DELETE FROM pedido WHERE id = ?";
 
     private final ZonaDeCarga zonaDeCarga;
 
@@ -35,7 +62,8 @@ public class PedidoController {
      * @param idTexto   identificador del pedido tal como lo escribió el usuario
      * @param direccion dirección de entrega
      * @param tipo      tipo de pedido seleccionado
-     * @return el pedido registrado
+     * @return el pedido registrado, o {@code null} si no se pudo guardar en la
+     *         base de datos (en ese caso el error ya se informó al usuario)
      * @throws IllegalArgumentException si algún dato no es válido o el identificador ya existe
      */
     public Pedido registrarPedido(String idTexto, String direccion, TipoPedido tipo) {
@@ -52,12 +80,15 @@ public class PedidoController {
     }
 
     /**
-     * Registra un pedido con los datos ya convertidos.
+     * Registra un pedido con los datos ya convertidos: primero lo guarda en MySQL
+     * y solo entonces lo deja disponible en la zona de carga, para que la lista en
+     * memoria y la base de datos no queden descuadradas.
      *
      * @param id        identificador del pedido
      * @param direccion dirección de entrega
      * @param tipo      tipo de pedido
-     * @return el pedido registrado
+     * @return el pedido registrado, o {@code null} si no se pudo guardar en la
+     *         base de datos (en ese caso el error ya se informó al usuario)
      * @throws IllegalArgumentException si algún dato no es válido o el identificador ya existe
      */
     public Pedido registrarPedido(int id, String direccion, TipoPedido tipo) {
@@ -75,8 +106,187 @@ public class PedidoController {
         }
 
         Pedido pedido = new Pedido(id, direccion.trim(), tipo);
+        if (!agregarPedido(pedido)) {
+            return null;
+        }
         zonaDeCarga.agregarPedido(pedido);
         return pedido;
+    }
+
+    /**
+     * Guarda un pedido en la base de datos mediante un {@link PreparedStatement}.
+     *
+     * @param pedido pedido que se quiere insertar
+     * @return {@code true} si el pedido quedó guardado
+     */
+    public boolean agregarPedido(Pedido pedido) {
+        try (Connection conn = ConexionBD.obtenerConexion();
+             PreparedStatement stmt = conn.prepareStatement(SQL_INSERT)) {
+
+            stmt.setInt(1, pedido.getId());
+            stmt.setString(2, pedido.getDireccionEntrega());
+            stmt.setString(3, pedido.getTipo().name());
+            stmt.setString(4, pedido.getEstado().name());
+
+            return stmt.executeUpdate() == 1;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Error al guardar el pedido en la base de datos.");
+            return false;
+        }
+    }
+
+    /**
+     * Actualiza en la base de datos la dirección, el tipo y el estado de un pedido
+     * ya existente.
+     *
+     * @param pedido pedido con los datos nuevos; su identificador indica la fila
+     * @return {@code true} si se actualizó alguna fila
+     */
+    public boolean editarPedido(Pedido pedido) {
+        try (Connection conn = ConexionBD.obtenerConexion();
+             PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
+
+            stmt.setString(1, pedido.getDireccionEntrega());
+            stmt.setString(2, pedido.getTipo().name());
+            stmt.setString(3, pedido.getEstado().name());
+            stmt.setInt(4, pedido.getId());
+
+            int filas = stmt.executeUpdate();
+            if (filas == 0) {
+                JOptionPane.showMessageDialog(
+                        null,
+                        "No existe el pedido #" + pedido.getId() + " en la base de datos.");
+                return false;
+            }
+            return true;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Error al actualizar el pedido en la base de datos.");
+            return false;
+        }
+    }
+
+    /**
+     * Elimina un pedido de la base de datos y, si lo logra, también de la zona de
+     * carga, para que la lista en memoria refleje lo mismo que MySQL.
+     *
+     * @param id identificador del pedido que se quiere eliminar
+     * @return {@code true} si el pedido fue eliminado
+     */
+    public boolean eliminarPedido(int id) {
+        try (Connection conn = ConexionBD.obtenerConexion();
+             PreparedStatement stmt = conn.prepareStatement(SQL_DELETE)) {
+
+            stmt.setInt(1, id);
+
+            int filas = stmt.executeUpdate();
+            if (filas == 0) {
+                JOptionPane.showMessageDialog(
+                        null,
+                        "No existe el pedido #" + id + " en la base de datos.");
+                return false;
+            }
+
+            Pedido pedido = zonaDeCarga.buscarPedido(id);
+            if (pedido != null) {
+                zonaDeCarga.quitarPedido(pedido);
+            }
+            return true;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "No se pudo eliminar el pedido #" + id
+                            + ": tiene entregas asociadas o hubo un error en la base de datos.");
+            return false;
+        }
+    }
+
+    /**
+     * Lee los pedidos guardados en MySQL y rearma con ellos la zona de carga.
+     * <p>
+     * La zona de carga se limpia antes de cargar, por lo que el método se puede
+     * llamar todas las veces que se quiera sin duplicar pedidos.
+     *
+     * @return la cantidad de pedidos cargados desde la base de datos
+     */
+    public int cargarPedidosDesdeDB() {
+        List<Pedido> leidos = new ArrayList<>();
+
+        try (Connection conn = ConexionBD.obtenerConexion();
+             PreparedStatement stmt = conn.prepareStatement(SQL_SELECT);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                leidos.add(new Pedido(
+                        rs.getInt("id"),
+                        rs.getString("direccion"),
+                        TipoPedido.valueOf(rs.getString("tipo").trim().toUpperCase()),
+                        EstadoPedido.valueOf(rs.getString("estado").trim().toUpperCase())));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Error al cargar los pedidos desde la base de datos.");
+            return 0;
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "La base de datos tiene un tipo o estado de pedido no válido: "
+                            + e.getMessage());
+            return 0;
+        }
+
+        zonaDeCarga.limpiar();
+        for (Pedido pedido : leidos) {
+            zonaDeCarga.reponerPedido(pedido);
+        }
+        return leidos.size();
+    }
+
+    /**
+     * Guarda en la base de datos el estado actual de todos los pedidos en memoria.
+     * Se usa al terminar el reparto, para que las entregas hechas por los hilos de
+     * los repartidores queden persistidas.
+     *
+     * @return la cantidad de pedidos actualizados
+     */
+    public int guardarEstados() {
+        List<Pedido> pedidos = zonaDeCarga.getPedidos();
+        if (pedidos.isEmpty()) {
+            return 0;
+        }
+
+        int actualizados = 0;
+        try (Connection conn = ConexionBD.obtenerConexion();
+             PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
+
+            for (Pedido pedido : pedidos) {
+                stmt.setString(1, pedido.getDireccionEntrega());
+                stmt.setString(2, pedido.getTipo().name());
+                stmt.setString(3, pedido.getEstado().name());
+                stmt.setInt(4, pedido.getId());
+                actualizados += stmt.executeUpdate();
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Error al actualizar el estado de los pedidos en la base de datos.");
+        }
+        return actualizados;
     }
 
     /**

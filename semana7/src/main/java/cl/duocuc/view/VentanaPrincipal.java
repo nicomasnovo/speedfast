@@ -184,6 +184,9 @@ public class VentanaPrincipal extends JFrame {
                 etiquetaEstado.setText(" ");
                 try {
                     String resumen = get();
+                    // Los hilos de reparto cambiaron el estado de los pedidos en
+                    // memoria; se guardan en MySQL para que el avance persista.
+                    pedidoController.guardarEstados();
                     refrescarVistas();
                     JOptionPane.showMessageDialog(VentanaPrincipal.this, resumen,
                             "Resumen del despacho", JOptionPane.INFORMATION_MESSAGE);

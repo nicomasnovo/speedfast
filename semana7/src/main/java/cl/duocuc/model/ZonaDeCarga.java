@@ -43,6 +43,45 @@ public class ZonaDeCarga {
     }
 
     /**
+     * Repone en la zona de carga un pedido que ya existía en la base de datos,
+     * respetando el estado con que fue guardado: solo los pedidos pendientes
+     * quedan disponibles para los repartidores y los entregados se suman al
+     * contador de entregas.
+     *
+     * @param pedido pedido leído desde la base de datos
+     */
+    public synchronized void reponerPedido(Pedido pedido) {
+        registro.add(pedido);
+        if (pedido.getEstado() == EstadoPedido.PENDIENTE) {
+            cola.add(pedido);
+        } else if (pedido.getEstado() == EstadoPedido.ENTREGADO) {
+            entregados++;
+        }
+    }
+
+    /**
+     * Saca un pedido del registro y de las colas de reparto.
+     *
+     * @param pedido pedido que se quiere quitar de la zona de carga
+     * @return {@code true} si el pedido estaba registrado
+     */
+    public synchronized boolean quitarPedido(Pedido pedido) {
+        quitarDeLasColas(pedido);
+        return registro.remove(pedido);
+    }
+
+    /**
+     * Deja la zona de carga vacía. Se usa antes de volver a leer los pedidos
+     * desde la base de datos, para no duplicar registros.
+     */
+    public synchronized void limpiar() {
+        cola.clear();
+        colasAsignadas.clear();
+        registro.clear();
+        entregados = 0;
+    }
+
+    /**
      * Retira un pedido de la zona de carga. La operación es atómica: el pedido
      * que devuelve este método queda fuera de la cola, por lo que ningún otro
      * repartidor puede tomarlo.

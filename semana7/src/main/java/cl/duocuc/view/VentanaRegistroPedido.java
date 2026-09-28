@@ -128,6 +128,12 @@ public class VentanaRegistroPedido extends JFrame {
                     campoDireccion.getText(),
                     (TipoPedido) comboTipo.getSelectedItem());
 
+            // El controlador devuelve null si el pedido no se pudo guardar en la
+            // base de datos; en ese caso ya avisó del error al usuario.
+            if (pedido == null) {
+                return;
+            }
+
             JOptionPane.showMessageDialog(this,
                     "Pedido registrado correctamente:\n" + pedido);
             limpiar();

@@ -66,7 +66,7 @@ public class VentanaListaPedidos extends JFrame {
      */
     private JPanel crearPiePagina() {
         JButton botonActualizar = new JButton("Actualizar");
-        botonActualizar.addActionListener(e -> refrescar());
+        botonActualizar.addActionListener(e -> recargarDesdeBaseDeDatos());
 
         JPanel botones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
         botones.add(botonActualizar);
@@ -76,6 +76,16 @@ public class VentanaListaPedidos extends JFrame {
         panel.add(etiquetaResumen, BorderLayout.CENTER);
         panel.add(botones, BorderLayout.EAST);
         return panel;
+    }
+
+    /**
+     * Pide al controlador que vuelva a leer los pedidos desde MySQL y rearma la
+     * tabla con lo que haya en la base de datos. La vista no consulta la base de
+     * datos: solo llama al controlador (vista → controlador → ConexionBD → MySQL).
+     */
+    public void recargarDesdeBaseDeDatos() {
+        pedidoController.cargarPedidosDesdeDB();
+        refrescar();
     }
 
     /**

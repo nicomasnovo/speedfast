@@ -13,22 +13,51 @@ public class Repartidor implements Runnable {
     /** Variación aleatoria que se suma a la demora mínima, en milisegundos. */
     private static final long DEMORA_VARIABLE_MS = 1500;
 
-    private final String nombre;
+    /** Identificador del repartidor en la base de datos; 0 si aún no se ha guardado. */
+    private int id;
+
+    private String nombre;
     private final ZonaDeCarga zonaDeCarga;
 
     /** Entregas acumuladas; se escribe en el hilo del repartidor y se lee desde la interfaz. */
     private volatile int entregas;
 
     /**
-     * Crea un repartidor asociado a una zona de carga.
+     * Crea un repartidor sin identificador de base de datos.
      *
      * @param nombre      nombre del repartidor
      * @param zonaDeCarga zona de carga compartida desde la que retira los pedidos
      */
     public Repartidor(String nombre, ZonaDeCarga zonaDeCarga) {
+        this(0, nombre, zonaDeCarga);
+    }
+
+    /**
+     * Crea un repartidor asociado a una zona de carga.
+     *
+     * @param id          identificador del repartidor en la base de datos
+     * @param nombre      nombre del repartidor
+     * @param zonaDeCarga zona de carga compartida desde la que retira los pedidos
+     */
+    public Repartidor(int id, String nombre, ZonaDeCarga zonaDeCarga) {
+        this.id = id;
         this.nombre = nombre;
         this.zonaDeCarga = zonaDeCarga;
     }
+
+    /**
+     * Obtiene el identificador del repartidor en la base de datos.
+     *
+     * @return el identificador del repartidor, o 0 si todavía no está guardado
+     */
+    public int getId() { return id; }
+
+    /**
+     * Asigna el identificador que la base de datos generó para el repartidor.
+     *
+     * @param id identificador del repartidor
+     */
+    public void setId(int id) { this.id = id; }
 
     /**
      * Obtiene el nombre del repartidor.
@@ -36,6 +65,13 @@ public class Repartidor implements Runnable {
      * @return el nombre del repartidor
      */
     public String getNombre() { return nombre; }
+
+    /**
+     * Cambia el nombre del repartidor.
+     *
+     * @param nombre nuevo nombre del repartidor
+     */
+    public void setNombre(String nombre) { this.nombre = nombre; }
 
     /**
      * Obtiene la cantidad de pedidos que el repartidor alcanzó a entregar.
