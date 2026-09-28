@@ -1,23 +1,24 @@
 package cl.duocuc.main;
 
-import cl.duocuc.controllers.ConexionBD;
+import cl.duocuc.conexion.ConexionBD;
 import cl.duocuc.controllers.PedidoController;
 import cl.duocuc.controllers.RepartidorController;
-import cl.duocuc.model.TipoPedido;
 import cl.duocuc.model.ZonaDeCarga;
 import cl.duocuc.view.VentanaPrincipal;
 
 import javax.swing.SwingUtilities;
-import java.sql.Connection;
-import java.sql.SQLException;
 
 /**
  * Punto de entrada de la aplicación SpeedFast.
  * <p>
- * Su única responsabilidad es inicializar la aplicación: crea el almacenamiento
- * compartido ({@link ZonaDeCarga}), los controladores y la ventana principal. Los
- * controladores se crean una sola vez y se comparten con todas las vistas, de modo
- * que trabajen siempre sobre los mismos pedidos.
+ * Su única responsabilidad es inicializar la aplicación: pide a
+ * {@link ConexionBD#validarConexion()} que compruebe la base de datos y luego crea
+ * el almacenamiento compartido ({@link ZonaDeCarga}), los controladores y la
+ * ventana principal. Los controladores se crean una sola vez y se comparten con
+ * todas las vistas, de modo que trabajen siempre sobre los mismos pedidos.
+ * <p>
+ * Esta clase no usa JDBC: no conoce {@code Connection} ni SQL, solo el resultado
+ * de la validación.
  * <p>
  * Desde la semana 7 los datos iniciales ya no se crean desde Java: los pedidos y
  * los repartidores se cargan desde MySQL y provienen del script
@@ -40,12 +41,13 @@ public class Main {
      */
     public static void main(String[] args) {
 
-        try (Connection conn = ConexionBD.obtenerConexion()) {
-            System.out.println("✅ Conexión exitosa a la base de datos.");
-        } catch (SQLException e) {
-            System.err.println("❌ Error al conectar con la base de datos:");
-            e.printStackTrace();
+        if (!ConexionBD.validarConexion()) {
+            // Se conserva el comportamiento anterior: la interfaz se abre igual,
+            // porque cada operación vuelve a pedir su conexión y avisa al usuario
+            // si la base de datos sigue sin responder.
+            System.err.println("La aplicación se iniciará sin conexión confirmada.");
         }
+
         ZonaDeCarga zonaDeCarga = new ZonaDeCarga();
         PedidoController pedidoController = new PedidoController(zonaDeCarga);
         RepartidorController repartidorController = new RepartidorController(zonaDeCarga);

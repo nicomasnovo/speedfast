@@ -1,15 +1,10 @@
 package cl.duocuc.controllers;
 
+import cl.duocuc.dao.RepartidorDAO;
 import cl.duocuc.model.Pedido;
 import cl.duocuc.model.Repartidor;
 import cl.duocuc.model.ZonaDeCarga;
 
-import javax.swing.JOptionPane;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -21,10 +16,10 @@ import java.util.concurrent.TimeUnit;
  * ejecutando cada {@link Repartidor} en su propio hilo dentro de un
  * {@link ExecutorService}, tal como lo hacía la versión de consola.
  * <p>
- * Desde la semana 7 los repartidores se leen y se guardan en MySQL a través de
- * {@link ConexionBD#obtenerConexion()}; la lista en memoria se mantiene porque es
- * la que usan las vistas y los hilos de reparto (MySQL → controlador → lista →
- * Swing).
+ * Los repartidores se leen y se guardan en MySQL, pero este controlador ya no
+ * habla directamente con la base de datos: delega toda la persistencia en
+ * {@link RepartidorDAO}. La lista en memoria se mantiene porque es la que usan
+ * las vistas y los hilos de reparto (DAO → controlador → lista → Swing).
  * <p>
  * El método {@link #iniciarEntregas()} es bloqueante porque espera a que los
  * repartidores terminen, por lo que la vista debe llamarlo fuera del Event
@@ -32,23 +27,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class RepartidorController {
 
-    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
     /** Tiempo máximo de espera para que el pool termine las entregas. */
     private static final int ESPERA_MAXIMA_SEGUNDOS = 60;
 
-    /** Consulta que trae todos los repartidores guardados. */
-    private static final String SQL_SELECT = "SELECT id, nombre FROM repartidor ORDER BY id";
-
-    /** Inserción de un repartidor nuevo; el identificador lo genera MySQL. */
-    private static final String SQL_INSERT = "INSERT INTO repartidor (nombre) VALUES (?)";
-
-    /** Actualización del nombre de un repartidor existente. */
-    private static final String SQL_UPDATE = "UPDATE repartidor SET nombre = ? WHERE id = ?";
-
-    /** Eliminación de un repartidor por su identificador. */
-    private static final String SQL_DELETE = "DELETE FROM repartidor WHERE id = ?";
-
     private final ZonaDeCarga zonaDeCarga;
+    private final RepartidorDAO repartidorDAO = new RepartidorDAO();
     private final List<Repartidor> repartidores = new ArrayList<>();
 
     /** Indica si hay un reparto en ejecución; se consulta desde la interfaz. */
@@ -79,24 +62,11 @@ public class RepartidorController {
      * @return la cantidad de repartidores cargados desde la base de datos
      */
     public int cargarRepartidoresDesdeDB() {
-        List<Repartidor> leidos = new ArrayList<>();
+        List<Repartidor> leidos = repartidorDAO.cargarDesdeDB(zonaDeCarga);
 
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_SELECT);
-             ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                leidos.add(new Repartidor(
-                        rs.getInt("id"),
-                        rs.getString("nombre"),
-                        zonaDeCarga));
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al cargar los repartidores desde la base de datos.");
+        // El DAO devuelve null si la lectura falló y ya avisó del error: la lista
+        // en memoria se deja intacta en vez de vaciarla.
+        if (leidos == null) {
             return 0;
         }
 
@@ -123,33 +93,15 @@ public class RepartidorController {
                     "Ya existe un repartidor llamado " + nombreLimpio + ".");
         }
 
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt =
-                     conn.prepareStatement(SQL_INSERT, Statement.RETURN_GENERATED_KEYS)) {
-
-            stmt.setString(1, nombreLimpio);
-            if (stmt.executeUpdate() != 1) {
-                return null;
-            }
-
-            int id = 0;
-            try (ResultSet claves = stmt.getGeneratedKeys()) {
-                if (claves.next()) {
-                    id = claves.getInt(1);
-                }
-            }
-
-            Repartidor repartidor = new Repartidor(id, nombreLimpio, zonaDeCarga);
-            repartidores.add(repartidor);
-            return repartidor;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al guardar el repartidor en la base de datos.");
+        // El DAO inserta la fila y deja en el repartidor el identificador que
+        // generó MySQL; si falla, ya avisó del error al usuario.
+        Repartidor repartidor = new Repartidor(nombreLimpio, zonaDeCarga);
+        if (!repartidorDAO.agregar(repartidor)) {
             return null;
         }
+
+        repartidores.add(repartidor);
+        return repartidor;
     }
 
     /**
@@ -167,33 +119,15 @@ public class RepartidorController {
         }
         String nombreLimpio = nombre.trim();
 
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
-
-            stmt.setString(1, nombreLimpio);
-            stmt.setInt(2, id);
-
-            int filas = stmt.executeUpdate();
-            if (filas == 0) {
-                JOptionPane.showMessageDialog(
-                        null,
-                        "No existe el repartidor con ID " + id + " en la base de datos.");
-                return false;
-            }
-
-            Repartidor repartidor = buscarRepartidor(id);
-            if (repartidor != null) {
-                repartidor.setNombre(nombreLimpio);
-            }
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al actualizar el repartidor en la base de datos.");
+        if (!repartidorDAO.editar(id, nombreLimpio)) {
             return false;
         }
+
+        Repartidor repartidor = buscarRepartidor(id);
+        if (repartidor != null) {
+            repartidor.setNombre(nombreLimpio);
+        }
+        return true;
     }
 
     /**
@@ -204,30 +138,12 @@ public class RepartidorController {
      * @return {@code true} si el repartidor fue eliminado
      */
     public boolean eliminarRepartidor(int id) {
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_DELETE)) {
-
-            stmt.setInt(1, id);
-
-            int filas = stmt.executeUpdate();
-            if (filas == 0) {
-                JOptionPane.showMessageDialog(
-                        null,
-                        "No existe el repartidor con ID " + id + " en la base de datos.");
-                return false;
-            }
-
-            repartidores.removeIf(repartidor -> repartidor.getId() == id);
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "No se pudo eliminar el repartidor con ID " + id
-                            + ": tiene entregas asociadas o hubo un error en la base de datos.");
+        if (!repartidorDAO.eliminar(id)) {
             return false;
         }
+
+        repartidores.removeIf(repartidor -> repartidor.getId() == id);
+        return true;
     }
 
     /**

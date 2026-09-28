@@ -1,15 +1,11 @@
 package cl.duocuc.controllers;
 
+import cl.duocuc.dao.PedidoDAO;
 import cl.duocuc.model.EstadoPedido;
 import cl.duocuc.model.Pedido;
 import cl.duocuc.model.TipoPedido;
 import cl.duocuc.model.ZonaDeCarga;
 
-import javax.swing.JOptionPane;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,37 +14,19 @@ import java.util.List;
  * los registra o consulta en la {@link ZonaDeCarga}, que es el almacenamiento en
  * memoria del sistema.
  * <p>
- * Desde la semana 7 los pedidos además se guardan en MySQL: este controlador es
- * el único punto que habla con la base de datos (mediante
- * {@link ConexionBD#obtenerConexion()}), de modo que las vistas sigan trabajando
- * solo con objetos {@link Pedido}. El flujo es
- * MySQL → controlador → zona de carga → Swing.
+ * Los pedidos además se guardan en MySQL, pero este controlador ya no habla
+ * directamente con la base de datos: delega toda la persistencia en
+ * {@link PedidoDAO} y se queda con la coordinación (validar los datos de la
+ * vista, crear los objetos {@link Pedido} y mantener la zona de carga al día).
+ * El flujo es vista → controlador → DAO → ConexionBD → MySQL.
  * <p>
  * Todas las vistas deben compartir la misma instancia de este controlador para
  * trabajar sobre los mismos pedidos.
  */
 public class PedidoController {
 
-    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
-    /** Consulta que trae todos los pedidos guardados. */
-    private static final String SQL_SELECT =
-            "SELECT id, direccion, tipo, estado, repartidor FROM pedido ORDER BY id";
-
-    /**
-     * Inserción de un pedido nuevo. No incluye el repartidor porque un pedido
-     * recién registrado todavía no tiene uno asignado.
-     */
-    private static final String SQL_INSERT =
-            "INSERT INTO pedido (id, direccion, tipo, estado) VALUES (?, ?, ?, ?)";
-
-    /** Actualización de los datos de un pedido existente. */
-    private static final String SQL_UPDATE =
-            "UPDATE pedido SET direccion = ?, tipo = ?, estado = ?, repartidor = ? WHERE id = ?";
-
-    /** Eliminación de un pedido por su identificador. */
-    private static final String SQL_DELETE = "DELETE FROM pedido WHERE id = ?";
-
     private final ZonaDeCarga zonaDeCarga;
+    private final PedidoDAO pedidoDAO;
 
     /**
      * Crea el controlador sobre una zona de carga existente.
@@ -57,6 +35,7 @@ public class PedidoController {
      */
     public PedidoController(ZonaDeCarga zonaDeCarga) {
         this.zonaDeCarga = zonaDeCarga;
+        this.pedidoDAO = new PedidoDAO();
     }
 
     /**
@@ -117,67 +96,26 @@ public class PedidoController {
     }
 
     /**
-     * Guarda un pedido en la base de datos mediante un {@link PreparedStatement}.
+     * Pide al DAO que guarde un pedido en la base de datos.
      *
      * @param pedido pedido que se quiere insertar
      * @return {@code true} si el pedido quedó guardado
      */
     public boolean agregarPedido(Pedido pedido) {
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_INSERT)) {
-
-            stmt.setInt(1, pedido.getId());
-            stmt.setString(2, pedido.getDireccionEntrega());
-            stmt.setString(3, pedido.getTipo().name());
-            stmt.setString(4, pedido.getEstado().name());
-
-            return stmt.executeUpdate() == 1;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al guardar el pedido en la base de datos.");
-            return false;
-        }
+        return pedidoDAO.agregar(pedido);
     }
 
     /**
-     * Actualiza en la base de datos la dirección, el tipo, el estado y el
-     * repartidor de un pedido ya existente. También se usa para guardar la
-     * asignación hecha desde la interfaz, porque esa asignación solo cambia el
-     * repartidor del pedido.
+     * Pide al DAO que actualice la dirección, el tipo, el estado y el repartidor
+     * de un pedido ya existente. También se usa para guardar la asignación hecha
+     * desde la interfaz, porque esa asignación solo cambia el repartidor del
+     * pedido.
      *
      * @param pedido pedido con los datos nuevos; su identificador indica la fila
      * @return {@code true} si se actualizó alguna fila
      */
     public boolean editarPedido(Pedido pedido) {
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
-
-            stmt.setString(1, pedido.getDireccionEntrega());
-            stmt.setString(2, pedido.getTipo().name());
-            stmt.setString(3, pedido.getEstado().name());
-            // Queda NULL en la base de datos mientras el pedido no tenga repartidor.
-            stmt.setString(4, pedido.getRepartidorAsignado());
-            stmt.setInt(5, pedido.getId());
-
-            int filas = stmt.executeUpdate();
-            if (filas == 0) {
-                JOptionPane.showMessageDialog(
-                        null,
-                        "No existe el pedido #" + pedido.getId() + " en la base de datos.");
-                return false;
-            }
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al actualizar el pedido en la base de datos.");
-            return false;
-        }
+        return pedidoDAO.editar(pedido);
     }
 
     /**
@@ -188,33 +126,15 @@ public class PedidoController {
      * @return {@code true} si el pedido fue eliminado
      */
     public boolean eliminarPedido(int id) {
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_DELETE)) {
-
-            stmt.setInt(1, id);
-
-            int filas = stmt.executeUpdate();
-            if (filas == 0) {
-                JOptionPane.showMessageDialog(
-                        null,
-                        "No existe el pedido #" + id + " en la base de datos.");
-                return false;
-            }
-
-            Pedido pedido = zonaDeCarga.buscarPedido(id);
-            if (pedido != null) {
-                zonaDeCarga.quitarPedido(pedido);
-            }
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "No se pudo eliminar el pedido #" + id
-                            + ": tiene entregas asociadas o hubo un error en la base de datos.");
+        if (!pedidoDAO.eliminar(id)) {
             return false;
         }
+
+        Pedido pedido = zonaDeCarga.buscarPedido(id);
+        if (pedido != null) {
+            zonaDeCarga.quitarPedido(pedido);
+        }
+        return true;
     }
 
     /**
@@ -226,36 +146,11 @@ public class PedidoController {
      * @return la cantidad de pedidos cargados desde la base de datos
      */
     public int cargarPedidosDesdeDB() {
-        List<Pedido> leidos = new ArrayList<>();
+        List<Pedido> leidos = pedidoDAO.cargarDesdeDB();
 
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_SELECT);
-             ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                Pedido pedido = new Pedido(
-                        rs.getInt("id"),
-                        rs.getString("direccion"),
-                        TipoPedido.valueOf(rs.getString("tipo").trim().toUpperCase()),
-                        EstadoPedido.valueOf(rs.getString("estado").trim().toUpperCase()));
-                // getString devuelve null si la columna está en NULL, es decir,
-                // si el pedido todavía no tiene repartidor asignado.
-                pedido.setRepartidorAsignado(rs.getString("repartidor"));
-                leidos.add(pedido);
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al cargar los pedidos desde la base de datos.");
-            return 0;
-        } catch (IllegalArgumentException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "La base de datos tiene un tipo o estado de pedido no válido: "
-                            + e.getMessage());
+        // El DAO devuelve null si la lectura falló y ya avisó del error: la zona
+        // de carga se deja intacta en vez de vaciarla.
+        if (leidos == null) {
             return 0;
         }
 
@@ -280,26 +175,7 @@ public class PedidoController {
             return 0;
         }
 
-        int actualizados = 0;
-        try (Connection conn = ConexionBD.obtenerConexion();
-             PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE)) {
-
-            for (Pedido pedido : pedidos) {
-                stmt.setString(1, pedido.getDireccionEntrega());
-                stmt.setString(2, pedido.getTipo().name());
-                stmt.setString(3, pedido.getEstado().name());
-                stmt.setString(4, pedido.getRepartidorAsignado());
-                stmt.setInt(5, pedido.getId());
-                actualizados += stmt.executeUpdate();
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Error al actualizar el estado de los pedidos en la base de datos.");
-        }
-        return actualizados;
+        return pedidoDAO.guardarEstados(pedidos);
     }
 
     /**
