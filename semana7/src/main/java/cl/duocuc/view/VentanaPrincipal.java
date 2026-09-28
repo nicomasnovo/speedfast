@@ -4,34 +4,51 @@ import cl.duocuc.controllers.PedidoController;
 import cl.duocuc.controllers.RepartidorController;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.SwingWorker;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridLayout;
-import java.util.concurrent.ExecutionException;
 
 /**
- * Ventana principal de SpeedFast. Reemplaza el menú que antes se mostraba por
- * consola y abre las demás vistas compartiendo los mismos controladores, de modo
- * que todas trabajen sobre los mismos datos.
+ * Ventana principal de SpeedFast. Es la única ventana de la aplicación: tiene un
+ * menú lateral fijo a la izquierda y un área central con {@link CardLayout} donde
+ * se muestran las cuatro secciones, por lo que navegar ya no abre ventanas nuevas.
+ * <p>
+ * Los controladores se crean una sola vez en {@code Main} y se comparten con todas
+ * las secciones, de modo que todas trabajen sobre los mismos datos. La navegación
+ * vive en la vista: los botones del menú solo cambian la tarjeta visible.
  */
 public class VentanaPrincipal extends JFrame {
 
-    private final PedidoController pedidoController;
-    private final RepartidorController repartidorController;
+    /** Nombres de las tarjetas del {@link CardLayout}. */
+    private static final String PEDIDO = "PEDIDO";
+    private static final String REPARTIDOR = "REPARTIDOR";
+    private static final String ENTREGA = "ENTREGA";
+    private static final String PEDIDOS = "PEDIDOS";
 
-    private final JButton botonIniciarEntregas = new JButton("Iniciar Entregas");
-    private final JLabel etiquetaEstado = new JLabel(" ");
+    /** Ancho fijo del menú lateral y alto común de sus botones. */
+    private static final int ANCHO_MENU = 210;
+    private static final int ALTO_BOTON = 44;
+    private static final int SEPARACION_BOTONES = 10;
 
-    private VentanaRegistroPedido ventanaRegistro;
-    private VentanaListaPedidos ventanaLista;
-    private VentanaAsignarRepartidor ventanaAsignar;
+    /** Color de fondo del menú lateral. */
+    private static final Color COLOR_MENU = new Color(236, 239, 244);
+
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel panelContenido = new JPanel(cardLayout);
+
+    private final PanelRegistrarPedido panelRegistrarPedido;
+    private final PanelRegistrarRepartidor panelRegistrarRepartidor;
+    private final PanelRegistrarEntrega panelRegistrarEntrega;
+    private final PanelVerPedidos panelVerPedidos;
 
     /**
      * Crea la ventana principal con los controladores que comparte toda la aplicación.
@@ -41,175 +58,137 @@ public class VentanaPrincipal extends JFrame {
      */
     public VentanaPrincipal(PedidoController pedidoController,
                             RepartidorController repartidorController) {
-        this.pedidoController = pedidoController;
-        this.repartidorController = repartidorController;
+        this.panelRegistrarPedido =
+                new PanelRegistrarPedido(pedidoController, this::refrescarVistas);
+        this.panelRegistrarRepartidor =
+                new PanelRegistrarRepartidor(repartidorController, this::refrescarVistas);
+        this.panelRegistrarEntrega = new PanelRegistrarEntrega(
+                pedidoController, repartidorController, this::refrescarVistas);
+        this.panelVerPedidos = new PanelVerPedidos(pedidoController);
 
-        setTitle("SpeedFast - Menú Principal");
+        setTitle("SpeedFast - Gestión de Entregas");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout());
+
+        panelContenido.add(panelRegistrarPedido, PEDIDO);
+        panelContenido.add(panelRegistrarRepartidor, REPARTIDOR);
+        panelContenido.add(panelRegistrarEntrega, ENTREGA);
+        panelContenido.add(panelVerPedidos, PEDIDOS);
 
         add(crearEncabezado(), BorderLayout.NORTH);
-        add(crearBotonera(), BorderLayout.CENTER);
+        add(crearMenuLateral(), BorderLayout.WEST);
+        add(panelContenido, BorderLayout.CENTER);
         add(crearPiePagina(), BorderLayout.SOUTH);
 
-        setSize(480, 280);
+        mostrar(PEDIDO);
+
+        setMinimumSize(new Dimension(760, 480));
+        setSize(900, 540);
         setLocationRelativeTo(null);
     }
 
     /**
-     * Arma el título de la aplicación.
+     * Arma el título de la aplicación, que se mantiene visible en la parte superior.
      *
      * @return el panel del encabezado
      */
     private JPanel crearEncabezado() {
-        JLabel titulo = new JLabel("SpeedFast", JLabel.CENTER);
-        titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 24f));
+        JLabel titulo = new JLabel("SpeedFast - Gestión de Entregas");
+        titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 20f));
 
-        JLabel subtitulo = new JLabel("Gestión de Entregas", JLabel.CENTER);
-
-        JPanel panel = new JPanel(new GridLayout(2, 1, 0, 5));
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 5, 15));
-        panel.add(titulo);
-        panel.add(subtitulo);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(12, 20, 12, 20)));
+        panel.add(titulo, BorderLayout.WEST);
         return panel;
     }
 
     /**
-     * Arma los cuatro botones del menú principal.
+     * Arma el menú lateral fijo con los botones de navegación, dispuestos
+     * verticalmente y todos del mismo tamaño.
      *
-     * @return el panel con las acciones principales
+     * @return el panel del menú lateral
      */
-    private JPanel crearBotonera() {
-        JButton botonRegistrar = new JButton("Registrar Pedido");
-        JButton botonListar = new JButton("Listar Pedidos");
-        JButton botonAsignar = new JButton("Asignar Repartidor");
+    private JPanel crearMenuLateral() {
+        JPanel menu = new JPanel();
+        menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
+        menu.setBackground(COLOR_MENU);
+        menu.setPreferredSize(new Dimension(ANCHO_MENU, 0));
+        menu.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 0, 1, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(20, 15, 20, 15)));
 
-        botonRegistrar.addActionListener(e -> abrirRegistroPedido());
-        botonListar.addActionListener(e -> abrirListaPedidos());
-        botonAsignar.addActionListener(e -> abrirAsignarRepartidor());
-        botonIniciarEntregas.addActionListener(e -> iniciarEntregas());
-
-        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
-        panel.add(botonRegistrar);
-        panel.add(botonListar);
-        panel.add(botonAsignar);
-        panel.add(botonIniciarEntregas);
-        return panel;
+        agregarBotonMenu(menu, "Registrar Pedido", PEDIDO);
+        agregarBotonMenu(menu, "Registrar Repartidor", REPARTIDOR);
+        agregarBotonMenu(menu, "Registrar Entrega", ENTREGA);
+        agregarBotonMenu(menu, "Ver Pedidos", PEDIDOS);
+        menu.add(Box.createVerticalGlue());
+        return menu;
     }
 
     /**
-     * Arma la línea inferior: el avance del despacho y la identificación de la actividad.
+     * Agrega al menú lateral un botón que muestra una de las secciones.
+     *
+     * @param menu    panel del menú lateral
+     * @param texto   texto del botón
+     * @param tarjeta nombre de la tarjeta que abre el botón
+     */
+    private void agregarBotonMenu(JPanel menu, String texto, String tarjeta) {
+        JButton boton = new JButton(texto);
+        boton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        boton.setMaximumSize(new Dimension(Integer.MAX_VALUE, ALTO_BOTON));
+        boton.setPreferredSize(new Dimension(ANCHO_MENU, ALTO_BOTON));
+        boton.setFocusPainted(false);
+        boton.addActionListener(e -> mostrar(tarjeta));
+
+        menu.add(boton);
+        menu.add(Box.createVerticalStrut(SEPARACION_BOTONES));
+    }
+
+    /**
+     * Arma la línea inferior con la identificación de la actividad.
      *
      * @return el panel del pie de página
      */
     private JPanel crearPiePagina() {
-        etiquetaEstado.setHorizontalAlignment(JLabel.CENTER);
-
         JLabel etiquetaActividad =
-                new JLabel("Desarrollo Orientado a Objetos II - Semana 6", JLabel.CENTER);
+                new JLabel("Desarrollo Orientado a Objetos II - Semana 7");
         etiquetaActividad.setFont(etiquetaActividad.getFont().deriveFont(11f));
         etiquetaActividad.setForeground(Color.GRAY);
 
-        JPanel panel = new JPanel(new GridLayout(2, 1));
-        panel.setBorder(BorderFactory.createEmptyBorder(0, 15, 12, 15));
-        panel.add(etiquetaEstado);
-        panel.add(etiquetaActividad);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(8, 20, 8, 20)));
+        panel.add(etiquetaActividad, BorderLayout.WEST);
         return panel;
     }
 
     /**
-     * Abre la ventana de registro de pedidos, reutilizándola si ya está abierta.
-     */
-    private void abrirRegistroPedido() {
-        if (ventanaRegistro == null || !ventanaRegistro.isDisplayable()) {
-            ventanaRegistro = new VentanaRegistroPedido(pedidoController, this::refrescarVistas);
-        }
-        mostrar(ventanaRegistro);
-    }
-
-    /**
-     * Abre el listado de pedidos, reutilizándolo si ya está abierto.
-     */
-    private void abrirListaPedidos() {
-        if (ventanaLista == null || !ventanaLista.isDisplayable()) {
-            ventanaLista = new VentanaListaPedidos(pedidoController);
-        }
-        ventanaLista.refrescar();
-        mostrar(ventanaLista);
-    }
-
-    /**
-     * Abre la ventana de asignación de repartidores, reutilizándola si ya está abierta.
-     */
-    private void abrirAsignarRepartidor() {
-        if (ventanaAsignar == null || !ventanaAsignar.isDisplayable()) {
-            ventanaAsignar = new VentanaAsignarRepartidor(
-                    pedidoController, repartidorController, this::refrescarVistas);
-        }
-        ventanaAsignar.recargarPendientes();
-        mostrar(ventanaAsignar);
-    }
-
-    /**
-     * Muestra una ventana secundaria y la trae al frente.
+     * Muestra una de las secciones en el área central, actualizando antes sus
+     * datos para que el usuario vea siempre la información vigente.
      *
-     * @param ventana ventana que se quiere mostrar
+     * @param tarjeta nombre de la tarjeta que se quiere mostrar
      */
-    private void mostrar(JFrame ventana) {
-        ventana.setVisible(true);
-        ventana.toFront();
-        ventana.requestFocus();
+    private void mostrar(String tarjeta) {
+        switch (tarjeta) {
+            case PEDIDO -> panelRegistrarPedido.limpiar();
+            case REPARTIDOR -> panelRegistrarRepartidor.refrescar();
+            case ENTREGA -> panelRegistrarEntrega.recargar();
+            case PEDIDOS -> panelVerPedidos.refrescar();
+            default -> { }
+        }
+        cardLayout.show(panelContenido, tarjeta);
     }
 
     /**
-     * Lanza el reparto concurrente sin bloquear el Event Dispatch Thread: la
-     * lógica existente del controlador se ejecuta en un {@link SwingWorker} y el
-     * resultado se muestra cuando termina.
-     */
-    private void iniciarEntregas() {
-        botonIniciarEntregas.setEnabled(false);
-        etiquetaEstado.setText("Reparto en curso...");
-
-        new SwingWorker<String, Void>() {
-
-            @Override
-            protected String doInBackground() throws Exception {
-                return repartidorController.iniciarEntregas();
-            }
-
-            @Override
-            protected void done() {
-                botonIniciarEntregas.setEnabled(true);
-                etiquetaEstado.setText(" ");
-                try {
-                    String resumen = get();
-                    // Los hilos de reparto cambiaron el estado de los pedidos en
-                    // memoria; se guardan en MySQL para que el avance persista.
-                    pedidoController.guardarEstados();
-                    refrescarVistas();
-                    JOptionPane.showMessageDialog(VentanaPrincipal.this, resumen,
-                            "Resumen del despacho", JOptionPane.INFORMATION_MESSAGE);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (ExecutionException e) {
-                    Throwable causa = e.getCause() != null ? e.getCause() : e;
-                    JOptionPane.showMessageDialog(VentanaPrincipal.this, causa.getMessage(),
-                            "Error", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        }.execute();
-    }
-
-    /**
-     * Actualiza las ventanas abiertas después de un cambio en los datos.
+     * Actualiza las secciones después de un cambio en los datos, de modo que las
+     * cuatro pantallas sigan mostrando lo mismo que los controladores.
      */
     private void refrescarVistas() {
-        if (ventanaLista != null && ventanaLista.isDisplayable()) {
-            ventanaLista.refrescar();
-        }
-        if (ventanaAsignar != null && ventanaAsignar.isDisplayable()) {
-            ventanaAsignar.recargarPendientes();
-        }
+        panelRegistrarRepartidor.refrescar();
+        panelRegistrarEntrega.recargar();
+        panelVerPedidos.refrescar();
     }
 }

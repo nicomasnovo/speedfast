@@ -5,7 +5,6 @@ import cl.duocuc.model.Pedido;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -15,11 +14,16 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 
 /**
- * Listado de pedidos en una {@link JTable} de solo lectura. Reemplaza el listado
- * que antes se imprimía por consola y toma los datos siempre desde el
- * {@link PedidoController}, sin mantener su propia copia.
+ * Sección con el listado de pedidos en una {@link JTable} de solo lectura. Es el
+ * mismo listado que antes vivía en la ventana {@code VentanaListaPedidos}, ahora
+ * como {@link JPanel} para poder mostrarse dentro del área central de la
+ * {@link VentanaPrincipal}.
+ * <p>
+ * Los datos se toman siempre desde el {@link PedidoController}, sin mantener una
+ * copia propia y sin consultar la base de datos desde la vista
+ * (vista → controlador → ConexionBD → MySQL).
  */
-public class VentanaListaPedidos extends JFrame {
+public class PanelVerPedidos extends PanelSeccion {
 
     /** Columnas del listado. */
     private static final String[] COLUMNAS = {"ID", "Dirección", "Tipo", "Estado", "Repartidor"};
@@ -33,7 +37,8 @@ public class VentanaListaPedidos extends JFrame {
      *
      * @param pedidoController controlador de pedidos compartido
      */
-    public VentanaListaPedidos(PedidoController pedidoController) {
+    public PanelVerPedidos(PedidoController pedidoController) {
+        super("Ver Pedidos");
         this.pedidoController = pedidoController;
         this.modeloTabla = new DefaultTableModel(COLUMNAS, 0) {
             @Override
@@ -42,21 +47,15 @@ public class VentanaListaPedidos extends JFrame {
             }
         };
 
-        setTitle("SpeedFast - Listado de Pedidos");
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
-
         JTable tabla = new JTable(modeloTabla);
         tabla.setFillsViewportHeight(true);
 
         JScrollPane scroll = new JScrollPane(tabla);
-        scroll.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+        scroll.setBorder(BorderFactory.createEtchedBorder());
         add(scroll, BorderLayout.CENTER);
         add(crearPiePagina(), BorderLayout.SOUTH);
 
         refrescar();
-        setSize(640, 320);
-        setLocationRelativeTo(null);
     }
 
     /**
@@ -72,7 +71,6 @@ public class VentanaListaPedidos extends JFrame {
         botones.add(botonActualizar);
 
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(0, 15, 10, 10));
         panel.add(etiquetaResumen, BorderLayout.CENTER);
         panel.add(botones, BorderLayout.EAST);
         return panel;
@@ -81,7 +79,7 @@ public class VentanaListaPedidos extends JFrame {
     /**
      * Pide al controlador que vuelva a leer los pedidos desde MySQL y rearma la
      * tabla con lo que haya en la base de datos. La vista no consulta la base de
-     * datos: solo llama al controlador (vista → controlador → ConexionBD → MySQL).
+     * datos: solo llama al controlador.
      */
     public void recargarDesdeBaseDeDatos() {
         pedidoController.cargarPedidosDesdeDB();

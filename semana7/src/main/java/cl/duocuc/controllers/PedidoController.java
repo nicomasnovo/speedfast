@@ -32,15 +32,18 @@ public class PedidoController {
     //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
     /** Consulta que trae todos los pedidos guardados. */
     private static final String SQL_SELECT =
-            "SELECT id, direccion, tipo, estado FROM pedido ORDER BY id";
+            "SELECT id, direccion, tipo, estado, repartidor FROM pedido ORDER BY id";
 
-    /** Inserción de un pedido nuevo. */
+    /**
+     * Inserción de un pedido nuevo. No incluye el repartidor porque un pedido
+     * recién registrado todavía no tiene uno asignado.
+     */
     private static final String SQL_INSERT =
             "INSERT INTO pedido (id, direccion, tipo, estado) VALUES (?, ?, ?, ?)";
 
     /** Actualización de los datos de un pedido existente. */
     private static final String SQL_UPDATE =
-            "UPDATE pedido SET direccion = ?, tipo = ?, estado = ? WHERE id = ?";
+            "UPDATE pedido SET direccion = ?, tipo = ?, estado = ?, repartidor = ? WHERE id = ?";
 
     /** Eliminación de un pedido por su identificador. */
     private static final String SQL_DELETE = "DELETE FROM pedido WHERE id = ?";
@@ -140,8 +143,10 @@ public class PedidoController {
     }
 
     /**
-     * Actualiza en la base de datos la dirección, el tipo y el estado de un pedido
-     * ya existente.
+     * Actualiza en la base de datos la dirección, el tipo, el estado y el
+     * repartidor de un pedido ya existente. También se usa para guardar la
+     * asignación hecha desde la interfaz, porque esa asignación solo cambia el
+     * repartidor del pedido.
      *
      * @param pedido pedido con los datos nuevos; su identificador indica la fila
      * @return {@code true} si se actualizó alguna fila
@@ -153,7 +158,9 @@ public class PedidoController {
             stmt.setString(1, pedido.getDireccionEntrega());
             stmt.setString(2, pedido.getTipo().name());
             stmt.setString(3, pedido.getEstado().name());
-            stmt.setInt(4, pedido.getId());
+            // Queda NULL en la base de datos mientras el pedido no tenga repartidor.
+            stmt.setString(4, pedido.getRepartidorAsignado());
+            stmt.setInt(5, pedido.getId());
 
             int filas = stmt.executeUpdate();
             if (filas == 0) {
@@ -226,11 +233,15 @@ public class PedidoController {
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                leidos.add(new Pedido(
+                Pedido pedido = new Pedido(
                         rs.getInt("id"),
                         rs.getString("direccion"),
                         TipoPedido.valueOf(rs.getString("tipo").trim().toUpperCase()),
-                        EstadoPedido.valueOf(rs.getString("estado").trim().toUpperCase())));
+                        EstadoPedido.valueOf(rs.getString("estado").trim().toUpperCase()));
+                // getString devuelve null si la columna está en NULL, es decir,
+                // si el pedido todavía no tiene repartidor asignado.
+                pedido.setRepartidorAsignado(rs.getString("repartidor"));
+                leidos.add(pedido);
             }
 
         } catch (SQLException e) {
@@ -256,9 +267,10 @@ public class PedidoController {
     }
 
     /**
-     * Guarda en la base de datos el estado actual de todos los pedidos en memoria.
-     * Se usa al terminar el reparto, para que las entregas hechas por los hilos de
-     * los repartidores queden persistidas.
+     * Guarda en la base de datos el estado y el repartidor actuales de todos los
+     * pedidos en memoria. Se usa al terminar el reparto, para que las entregas
+     * hechas por los hilos de los repartidores queden persistidas junto con el
+     * repartidor que se hizo cargo de cada pedido.
      *
      * @return la cantidad de pedidos actualizados
      */
@@ -276,7 +288,8 @@ public class PedidoController {
                 stmt.setString(1, pedido.getDireccionEntrega());
                 stmt.setString(2, pedido.getTipo().name());
                 stmt.setString(3, pedido.getEstado().name());
-                stmt.setInt(4, pedido.getId());
+                stmt.setString(4, pedido.getRepartidorAsignado());
+                stmt.setInt(5, pedido.getId());
                 actualizados += stmt.executeUpdate();
             }
 

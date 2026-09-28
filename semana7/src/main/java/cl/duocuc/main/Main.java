@@ -62,24 +62,4 @@ public class Main {
         SwingUtilities.invokeLater(() ->
                 new VentanaPrincipal(pedidoController, repartidorController).setVisible(true));
     }
-
-    /**
-     * Deja en la zona de carga los pedidos con que parte la simulación.
-     * <p>
-     * Se conserva solo como referencia de la versión anterior: estos mismos datos
-     * están hoy en la sección "Datos de prueba inicial" de
-     * {@code db/script_estructura.sql} y la aplicación los lee desde MySQL con
-     * {@link PedidoController#cargarPedidosDesdeDB()}.
-     *
-     * @param pedidoController controlador que registra los pedidos
-     */
-    //Comentado según las indicaciones de la activdad de la semana en ava.
-    private static void cargarPedidosIniciales(PedidoController pedidoController) {
-        // pedidoController.registrarPedido(101, "Av. Italia 456", TipoPedido.COMIDA);
-        // pedidoController.registrarPedido(102, "Av. Apoquindo 1500", TipoPedido.ENCOMIENDA);
-        // pedidoController.registrarPedido(103, "Av. Santa Rosa 567", TipoPedido.EXPRESS);
-        // pedidoController.registrarPedido(104, "Los Leones 2100", TipoPedido.COMIDA);
-        // pedidoController.registrarPedido(105, "Providencia 890", TipoPedido.ENCOMIENDA);
-        // pedidoController.registrarPedido(106, "San Pablo 3200", TipoPedido.EXPRESS);
-    }
 }
