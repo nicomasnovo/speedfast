@@ -17,7 +17,7 @@ import java.awt.Insets;
 /**
  * Base de las secciones que se muestran en el área central de la
  * {@link VentanaPrincipal}. Cada sección es un {@link JPanel} con el mismo
- * título, márgenes y forma de armar los formularios, de modo que las cuatro
+ * título, márgenes y forma de armar los formularios, de modo que todas las
  * pantallas se vean iguales y no repitan ese código.
  * <p>
  * También reúne los colores y la forma de los botones del CRUD, para que las tres
@@ -109,22 +109,16 @@ abstract class PanelSeccion extends JPanel {
             boton.setText(icono + "  " + texto);
         }
 
-        // Sobre un fondo claro el texto negro se lee mejor; sobre los colores
-        // fuertes, el blanco.
         boolean fondoClaro = fondo.equals(COLOR_ACTUALIZAR);
         boton.setBackground(fondo);
+
         boton.setForeground(fondoClaro ? Color.DARK_GRAY : Color.WHITE);
         boton.setFont(boton.getFont().deriveFont(Font.BOLD));
-
-        // Necesario para que el color de fondo se pinte en los distintos
-        // Look and Feel, incluido el de macOS.
         boton.setOpaque(true);
         boton.setBorderPainted(false);
         boton.setFocusPainted(false);
         boton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
 
-        // Como el fondo se pinta a mano, hay que apagarlo cuando el botón se
-        // deshabilita; si no, seguiría viéndose de color y parecería disponible.
         boton.addPropertyChangeListener("enabled", cambio -> {
             boolean habilitado = Boolean.TRUE.equals(cambio.getNewValue());
             boton.setBackground(habilitado ? fondo : COLOR_DESHABILITADO);

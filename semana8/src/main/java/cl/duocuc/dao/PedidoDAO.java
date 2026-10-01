@@ -32,25 +32,20 @@ import java.util.List;
  */
 public class PedidoDAO {
 
-    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
     /** Consulta que trae todos los pedidos guardados. */
-    private static final String SQL_SELECT =
-            "SELECT id, direccion, tipo, estado, repartidor FROM pedido ORDER BY id";
+    private static final String SQL_SELECT = "SELECT id, direccion, tipo, estado, repartidor FROM pedido ORDER BY id";
 
     /** Consulta que trae un pedido por su identificador. */
-    private static final String SQL_SELECT_BY_ID =
-            "SELECT id, direccion, tipo, estado, repartidor FROM pedido WHERE id = ?";
+    private static final String SQL_SELECT_BY_ID = "SELECT id, direccion, tipo, estado, repartidor FROM pedido WHERE id = ?";
 
     /**
      * Inserción de un pedido nuevo. No incluye el repartidor porque un pedido
      * recién registrado todavía no tiene uno asignado.
      */
-    private static final String SQL_INSERT =
-            "INSERT INTO pedido (id, direccion, tipo, estado) VALUES (?, ?, ?, ?)";
+    private static final String SQL_INSERT = "INSERT INTO pedido (id, direccion, tipo, estado) VALUES (?, ?, ?, ?)";
 
     /** Actualización de los datos de un pedido existente. */
-    private static final String SQL_UPDATE =
-            "UPDATE pedido SET direccion = ?, tipo = ?, estado = ?, repartidor = ? WHERE id = ?";
+    private static final String SQL_UPDATE = "UPDATE pedido SET direccion = ?, tipo = ?, estado = ?, repartidor = ? WHERE id = ?";
 
     /** Eliminación de un pedido por su identificador. */
     private static final String SQL_DELETE = "DELETE FROM pedido WHERE id = ?";
@@ -74,7 +69,6 @@ public class PedidoDAO {
             return stmt.executeUpdate() == 1;
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // El ID ya está ocupado: es un dato mal ingresado, no un fallo técnico.
             System.out.println("[PedidoDAO] MySQL rechazó insertar el pedido #"
                     + pedido.getId() + ": la clave primaria ya existe.");
             throw new PersistenciaException(
@@ -105,7 +99,6 @@ public class PedidoDAO {
             stmt.setString(1, pedido.getDireccionEntrega());
             stmt.setString(2, pedido.getTipo().name());
             stmt.setString(3, pedido.getEstado().name());
-            // Queda NULL en la base de datos mientras el pedido no tenga repartidor.
             stmt.setString(4, pedido.getRepartidorAsignado());
             stmt.setInt(5, pedido.getId());
 
@@ -138,10 +131,6 @@ public class PedidoDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // Situación esperada: MySQL rechaza el borrado por la llave foránea de
-            // la tabla entrega. Se deja una línea en la consola en vez de la traza
-            // completa, porque no es un fallo de la aplicación: el controlador la
-            // propaga y la vista se lo explica al usuario.
             System.out.println("[PedidoDAO] MySQL rechazó eliminar el pedido #" + id
                     + " por integridad referencial.");
             throw new PersistenciaException(
@@ -232,8 +221,6 @@ public class PedidoDAO {
                 rs.getString("direccion"),
                 TipoPedido.valueOf(rs.getString("tipo").trim().toUpperCase()),
                 EstadoPedido.valueOf(rs.getString("estado").trim().toUpperCase()));
-        // getString devuelve null si la columna está en NULL, es decir,
-        // si el pedido todavía no tiene repartidor asignado.
         pedido.setRepartidorAsignado(rs.getString("repartidor"));
         return pedido;
     }

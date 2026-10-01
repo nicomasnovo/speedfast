@@ -94,7 +94,6 @@ public class PanelRegistrarPedido extends PanelSeccion {
                     campoDireccion.getText(),
                     (TipoPedido) comboTipo.getSelectedItem());
 
-            // El controlador devuelve null si la inserción no afectó ninguna fila.
             if (pedido == null) {
                 JOptionPane.showMessageDialog(this,
                         "No se pudo registrar el pedido en la base de datos.",

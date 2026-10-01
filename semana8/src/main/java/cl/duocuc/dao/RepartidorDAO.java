@@ -29,13 +29,11 @@ import java.util.List;
  */
 public class RepartidorDAO {
 
-    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
     /** Consulta que trae todos los repartidores guardados. */
     private static final String SQL_SELECT = "SELECT id, nombre FROM repartidor ORDER BY id";
 
     /** Consulta que trae un repartidor por su identificador. */
-    private static final String SQL_SELECT_BY_ID =
-            "SELECT id, nombre FROM repartidor WHERE id = ?";
+    private static final String SQL_SELECT_BY_ID = "SELECT id, nombre FROM repartidor WHERE id = ?";
 
     /** Inserción de un repartidor nuevo; el identificador lo genera MySQL. */
     private static final String SQL_INSERT = "INSERT INTO repartidor (nombre) VALUES (?)";
@@ -188,10 +186,6 @@ public class RepartidorDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // Situación esperada: MySQL rechaza el borrado por la llave foránea de
-            // la tabla entrega. Se deja una línea en la consola en vez de la traza
-            // completa, porque no es un fallo de la aplicación: el controlador la
-            // propaga y la vista se lo explica al usuario.
             System.out.println("[RepartidorDAO] MySQL rechazó eliminar el repartidor con ID "
                     + id + " por integridad referencial.");
             throw new PersistenciaException(

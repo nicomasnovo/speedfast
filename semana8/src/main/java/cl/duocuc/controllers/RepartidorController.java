@@ -94,12 +94,9 @@ public class RepartidorController {
         }
         String nombreLimpio = nombre.trim();
         if (getNombresRepartidores().contains(nombreLimpio)) {
-            throw new IllegalArgumentException(
-                    "Ya existe un repartidor llamado " + nombreLimpio + ".");
+            throw new IllegalArgumentException("Ya existe un repartidor llamado " + nombreLimpio + ".");
         }
 
-        // El DAO inserta la fila y deja en el repartidor el identificador que
-        // generó MySQL; si falla, ya avisó del error al usuario.
         Repartidor repartidor = new Repartidor(nombreLimpio, zonaDeCarga);
         if (!repartidorDAO.agregar(repartidor)) {
             return null;
@@ -125,12 +122,9 @@ public class RepartidorController {
         }
         String nombreLimpio = nombre.trim();
 
-        // El nombre identifica al repartidor en la tabla pedido, por lo que dos
-        // repartidores distintos no pueden llamarse igual.
         for (Repartidor otro : repartidores) {
             if (otro.getId() != id && otro.getNombre().equals(nombreLimpio)) {
-                throw new IllegalArgumentException(
-                        "Ya existe otro repartidor llamado " + nombreLimpio + ".");
+                throw new IllegalArgumentException("Ya existe otro repartidor llamado " + nombreLimpio + ".");
             }
         }
 
@@ -163,8 +157,7 @@ public class RepartidorController {
      */
     public boolean eliminarRepartidor(int id) {
         if (entregasEnCurso) {
-            throw new IllegalStateException(
-                    "No se puede eliminar un repartidor mientras hay un reparto en curso.");
+            throw new IllegalStateException("No se puede eliminar un repartidor mientras hay un reparto en curso.");
         }
 
         int entregas = entregaDAO.contarPorRepartidor(id);
@@ -274,8 +267,7 @@ public class RepartidorController {
                 throw new IllegalStateException("Ya hay un reparto en curso.");
             }
             if (repartidores.isEmpty()) {
-                throw new IllegalStateException(
-                        "No hay repartidores registrados en la base de datos.");
+                throw new IllegalStateException("No hay repartidores registrados en la base de datos.");
             }
             entregasEnCurso = true;
         }

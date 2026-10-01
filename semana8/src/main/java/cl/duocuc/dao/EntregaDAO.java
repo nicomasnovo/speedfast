@@ -32,7 +32,6 @@ import java.util.List;
  */
 public class EntregaDAO {
 
-    //Se crean las variables SQL para mejorar la legibilidad de las clases creadas
     /**
      * Parte común de las consultas de lectura. Incluye los JOIN con {@code pedido}
      * y {@code repartidor} para obtener los datos que se muestran en la interfaz.
@@ -54,20 +53,16 @@ public class EntregaDAO {
     private static final String SQL_SELECT_BY_PEDIDO = SQL_SELECT_BASE + "WHERE e.id_pedido = ?";
 
     /** Cuenta las entregas que dependen de un pedido. */
-    private static final String SQL_CONTAR_POR_PEDIDO =
-            "SELECT COUNT(*) FROM entrega WHERE id_pedido = ?";
+    private static final String SQL_CONTAR_POR_PEDIDO = "SELECT COUNT(*) FROM entrega WHERE id_pedido = ?";
 
     /** Cuenta las entregas que dependen de un repartidor. */
-    private static final String SQL_CONTAR_POR_REPARTIDOR =
-            "SELECT COUNT(*) FROM entrega WHERE id_repartidor = ?";
+    private static final String SQL_CONTAR_POR_REPARTIDOR = "SELECT COUNT(*) FROM entrega WHERE id_repartidor = ?";
 
     /** Inserción de una entrega nueva; el identificador lo genera MySQL. */
-    private static final String SQL_INSERT =
-            "INSERT INTO entrega (id_pedido, id_repartidor, fecha, hora) VALUES (?, ?, ?, ?)";
+    private static final String SQL_INSERT = "INSERT INTO entrega (id_pedido, id_repartidor, fecha, hora) VALUES (?, ?, ?, ?)";
 
     /** Actualización de los datos de una entrega existente. */
-    private static final String SQL_UPDATE =
-            "UPDATE entrega SET id_pedido = ?, id_repartidor = ?, fecha = ?, hora = ? WHERE id = ?";
+    private static final String SQL_UPDATE = "UPDATE entrega SET id_pedido = ?, id_repartidor = ?, fecha = ?, hora = ? WHERE id = ?";
 
     /** Eliminación de una entrega por su identificador. */
     private static final String SQL_DELETE = "DELETE FROM entrega WHERE id = ?";
@@ -98,8 +93,6 @@ public class EntregaDAO {
             return true;
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // Situación esperada: el pedido o el repartidor ya no existen. Basta una
-            // línea en la consola, porque la vista informa el problema al usuario.
             System.out.println("[EntregaDAO] MySQL rechazó insertar la entrega del pedido #"
                     + entrega.getIdPedido() + " por integridad referencial.");
             throw new PersistenciaException(
@@ -131,8 +124,6 @@ public class EntregaDAO {
             return stmt.executeUpdate() > 0;
 
         } catch (SQLIntegrityConstraintViolationException e) {
-            // Situación esperada: el pedido o el repartidor ya no existen. Basta una
-            // línea en la consola, porque la vista informa el problema al usuario.
             System.out.println("[EntregaDAO] MySQL rechazó actualizar la entrega #"
                     + entrega.getId() + " por integridad referencial.");
             throw new PersistenciaException(

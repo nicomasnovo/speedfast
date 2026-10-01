@@ -54,8 +54,7 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
      * @param repartidorController controlador de repartidores compartido
      * @param alRegistrar          acción que se ejecuta cuando se registra un repartidor
      */
-    public PanelRegistrarRepartidor(RepartidorController repartidorController,
-                                    Runnable alRegistrar) {
+    public PanelRegistrarRepartidor(RepartidorController repartidorController, Runnable alRegistrar) {
         super("Gestión de Repartidores");
         this.repartidorController = repartidorController;
         this.alRegistrar = alRegistrar;
@@ -68,7 +67,6 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
         this.tabla = new JTable(modeloTabla);
         this.tabla.setFillsViewportHeight(true);
         this.tabla.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        // Al elegir una fila, su nombre pasa al formulario para poder editarlo.
         this.tabla.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 mostrarSeleccionEnFormulario();
@@ -93,8 +91,6 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
         JScrollPane scroll = new JScrollPane(tabla);
         scroll.setBorder(BorderFactory.createTitledBorder("Repartidores registrados"));
 
-        // El formulario y los botones del CRUD van sobre la tabla, como en la
-        // interfaz referencial de la actividad.
         JPanel encabezado = new JPanel(new BorderLayout(0, 8));
         encabezado.add(formulario, BorderLayout.NORTH);
         encabezado.add(crearBarraDeAcciones(crearBotones()), BorderLayout.CENTER);
@@ -123,8 +119,7 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
         botonEliminar.addActionListener(e -> eliminar());
         botonActualizar.addActionListener(e -> recargarDesdeBaseDeDatos());
 
-        return new JButton[]{
-                botonNuevo, botonGuardar, botonEditar, botonEliminar, botonActualizar};
+        return new JButton[]{botonNuevo, botonGuardar, botonEditar, botonEliminar, botonActualizar};
     }
 
     /**
@@ -170,8 +165,7 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
         }
 
         try {
-            if (!repartidorController.editarRepartidor(repartidor.getId(),
-                    campoNombre.getText())) {
+            if (!repartidorController.editarRepartidor(repartidor.getId(), campoNombre.getText())) {
                 mostrarError("No se pudo actualizar el repartidor con ID " + repartidor.getId()
                         + ": puede que ya no exista en la base de datos.");
                 recargarDesdeBaseDeDatos();
@@ -214,8 +208,6 @@ public class PanelRegistrarRepartidor extends PanelSeccion {
             refrescar();
             alRegistrar.run();
         } catch (IllegalStateException | PersistenciaException ex) {
-            // Por ejemplo, cuando el repartidor tiene entregas registradas: se
-            // avisa y la aplicación sigue funcionando.
             mostrarError(ex.getMessage());
         }
     }

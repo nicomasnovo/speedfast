@@ -19,6 +19,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
@@ -155,7 +156,7 @@ public class PanelEntregas extends PanelSeccion {
             Pedido pedido = (Pedido) comboPedidos.getSelectedItem();
             Repartidor repartidor = (Repartidor) comboRepartidores.getSelectedItem();
             if (pedido == null || repartidor == null) {
-                mostrarError("Debe seleccionar un pedido y un repartidor.");
+                mostrarError(dialog, "Debe seleccionar un pedido y un repartidor.");
                 return;
             }
 
@@ -165,7 +166,7 @@ public class PanelEntregas extends PanelSeccion {
                         campoFecha.getText(), campoHora.getText());
 
                 if (entrega == null) {
-                    mostrarError("No se pudo registrar la entrega en la base de datos.");
+                    mostrarError(dialog, "No se pudo registrar la entrega en la base de datos.");
                     return;
                 }
 
@@ -179,7 +180,7 @@ public class PanelEntregas extends PanelSeccion {
                     alCambiar.run();
                 }
             } catch (IllegalArgumentException | IllegalStateException | PersistenciaException ex) {
-                mostrarError(ex.getMessage());
+                mostrarError(dialog, ex.getMessage());
             }
         });
 
@@ -375,6 +376,19 @@ public class PanelEntregas extends PanelSeccion {
      * @param mensaje texto que se muestra
      */
     private void mostrarError(String mensaje) {
-        JOptionPane.showMessageDialog(this, mensaje, "Error", JOptionPane.ERROR_MESSAGE);
+        mostrarError(this, mensaje);
+    }
+
+    /**
+     * Muestra un mensaje de error sobre un componente determinado. Mientras el
+     * formulario de registro está abierto hay que indicarlo como padre: es un
+     * diálogo modal de aplicación, por lo que un aviso colgado de la ventana
+     * principal quedaría bloqueado por él y el usuario no podría cerrarlo.
+     *
+     * @param padre   componente sobre el que se muestra el aviso
+     * @param mensaje texto que se muestra
+     */
+    private void mostrarError(Component padre, String mensaje) {
+        JOptionPane.showMessageDialog(padre, mensaje, "Error", JOptionPane.ERROR_MESSAGE);
     }
 }

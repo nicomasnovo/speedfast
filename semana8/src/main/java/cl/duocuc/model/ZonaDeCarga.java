@@ -59,9 +59,7 @@ public class ZonaDeCarga {
         if (pedido.getEstado() == EstadoPedido.PENDIENTE) {
             String repartidorAsignado = pedido.getRepartidorAsignado();
             if (repartidorAsignado != null) {
-                colasAsignadas
-                        .computeIfAbsent(repartidorAsignado, nombre -> new LinkedBlockingQueue<>())
-                        .add(pedido);
+                colasAsignadas.computeIfAbsent(repartidorAsignado, nombre -> new LinkedBlockingQueue<>()).add(pedido);
             } else {
                 cola.add(pedido);
             }
@@ -144,8 +142,7 @@ public class ZonaDeCarga {
                     + " ya fue retirado por un repartidor.");
         }
         pedido.setRepartidorAsignado(nombreRepartidor);
-        colasAsignadas.computeIfAbsent(nombreRepartidor, nombre -> new LinkedBlockingQueue<>())
-                .add(pedido);
+        colasAsignadas.computeIfAbsent(nombreRepartidor, nombre -> new LinkedBlockingQueue<>()).add(pedido);
         System.out.println("[ZonaDeCarga] Pedido #" + pedido.getId()
                 + " asignado a " + nombreRepartidor);
     }

@@ -28,13 +28,6 @@ import javax.swing.SwingUtilities;
  */
 public class Main {
 
-    /*
-     * Nombres de los repartidores con que antes partía la simulación. Se conservan
-     * como referencia: hoy los repartidores se cargan desde la tabla repartidor,
-     * con los datos insertados en db/script_estructura.sql.
-     */
-    // private static final String[] NOMBRES_REPARTIDORES = {"Camila", "Luis", "Pedro"};
-
     /**
      * Crea los controladores, carga los datos desde la base de datos y muestra la
      * interfaz Swing.
@@ -44,34 +37,22 @@ public class Main {
     public static void main(String[] args) {
 
         if (!ConexionBD.validarConexion()) {
-            // Se conserva el comportamiento anterior: la interfaz se abre igual,
-            // porque cada operación vuelve a pedir su conexión y avisa al usuario
-            // si la base de datos sigue sin responder.
             System.err.println("La aplicación se iniciará sin conexión confirmada.");
         }
 
         ZonaDeCarga zonaDeCarga = new ZonaDeCarga();
         PedidoController pedidoController = new PedidoController(zonaDeCarga);
         RepartidorController repartidorController = new RepartidorController(zonaDeCarga);
-        // El controlador de entregas trabaja sobre los otros dos para no repetir
-        // sus reglas de negocio ni su acceso a la base de datos.
-        EntregaController entregaController =
-                new EntregaController(pedidoController, repartidorController);
-
-        // Los datos iniciales ahora se cargan desde db/script_estructura.sql,
+        EntregaController entregaController = new EntregaController(pedidoController, repartidorController);
 
         try {
             int repartidoresCargados = repartidorController.cargarRepartidoresDesdeDB();
             int pedidosCargados = pedidoController.cargarPedidosDesdeDB();
-            System.out.println("Cargados desde MySQL: " + repartidoresCargados
-                    + " repartidor(es) y " + pedidosCargados + " pedido(s).");
+            System.out.println("Cargados desde MySQL: " + repartidoresCargados + " repartidor(es) y " + pedidosCargados + " pedido(s).");
         } catch (PersistenciaException e) {
-            // La aplicación se abre igual: cada sección tiene un botón Actualizar
-            // que vuelve a intentar la lectura cuando la base de datos responda.
             System.err.println("No se pudieron cargar los datos iniciales: " + e.getMessage());
         }
 
-        SwingUtilities.invokeLater(() -> new VentanaPrincipal(
-                pedidoController, repartidorController, entregaController).setVisible(true));
+        SwingUtilities.invokeLater(() -> new VentanaPrincipal(pedidoController, repartidorController, entregaController).setVisible(true));
     }
 }

@@ -53,21 +53,18 @@ public class VentanaPrincipal extends JFrame {
 
     /**
      * Crea la ventana principal con los controladores que comparte toda la aplicación.
+     * <p>
+     * El tamaño mínimo deja entrar completa la barra de cinco botones del CRUD: con
+     * menos ancho, {@link java.awt.FlowLayout} manda el último botón a una segunda
+     * fila que la barra no tiene alto para mostrar.
      *
      * @param pedidoController     controlador de pedidos compartido
      * @param repartidorController controlador de repartidores compartido
      * @param entregaController    controlador de entregas compartido
      */
-    public VentanaPrincipal(PedidoController pedidoController,
-                            RepartidorController repartidorController,
-                            EntregaController entregaController) {
-        this.panelRegistrarRepartidor =
-                new PanelRegistrarRepartidor(repartidorController, this::refrescarVistas);
-        // Los pedidos se registran, se asignan y se reparten desde su propio
-        // listado, con diálogos y botones de la sección, así que el menú no necesita
-        // secciones aparte para registrar ni para asignar pedidos.
-        this.panelPedidos = new PanelPedidos(
-                pedidoController, repartidorController, entregaController, this::refrescarVistas);
+    public VentanaPrincipal(PedidoController pedidoController, RepartidorController repartidorController, EntregaController entregaController) {
+        this.panelRegistrarRepartidor = new PanelRegistrarRepartidor(repartidorController, this::refrescarVistas);
+        this.panelPedidos = new PanelPedidos(pedidoController, repartidorController, entregaController, this::refrescarVistas);
         this.panelEntregas = new PanelEntregas(entregaController, this::refrescarVistas);
 
         setTitle("SpeedFast - Sistema de Gestión de Entregas");
@@ -85,9 +82,6 @@ public class VentanaPrincipal extends JFrame {
 
         mostrar(PEDIDOS);
 
-        // El mínimo deja entrar completa la barra de cinco botones del CRUD: con
-        // menos ancho, FlowLayout manda el último botón a una segunda fila que la
-        // barra no tiene alto para mostrar.
         setMinimumSize(new Dimension(860, 500));
         setSize(900, 540);
         setLocationRelativeTo(null);
@@ -105,7 +99,8 @@ public class VentanaPrincipal extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
-                BorderFactory.createEmptyBorder(12, 20, 12, 20)));
+                BorderFactory.createEmptyBorder(12, 20, 12, 20))
+        );
         panel.add(titulo, BorderLayout.WEST);
         return panel;
     }

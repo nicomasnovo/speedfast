@@ -94,8 +94,6 @@ public class PedidoController {
         if (zonaDeCarga.buscarPedido(id) != null) {
             throw new IllegalArgumentException("Ya existe un pedido con el ID " + id + ".");
         }
-        // También se revisa la base de datos: el identificador puede estar ocupado
-        // por un pedido que todavía no se ha cargado en memoria.
         if (pedidoDAO.buscarPorId(id) != null) {
             throw new IllegalArgumentException(
                     "Ya existe un pedido con el ID " + id + " en la base de datos.");
@@ -153,8 +151,7 @@ public class PedidoController {
             throw new IllegalArgumentException("No existe un pedido con el ID " + idPedido + ".");
         }
         if (nombreRepartidor == null || nombreRepartidor.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Debe indicar el repartidor que entregó el pedido.");
+            throw new IllegalArgumentException("Debe indicar el repartidor que entregó el pedido.");
         }
 
         if (pedido.getEstado() == EstadoPedido.ENTREGADO) {
@@ -211,8 +208,6 @@ public class PedidoController {
                     + "Asigne primero un repartidor con el botón Asignar de la sección Pedidos.");
         }
 
-        // Los cambios se llevan en un pedido aparte: si la base de datos rechaza la
-        // actualización, el pedido en memoria queda tal como estaba.
         Pedido cambios = new Pedido(id, direccion.trim(), tipo, estado);
         cambios.setRepartidorAsignado(repartidorAsignado);
 
@@ -220,8 +215,6 @@ public class PedidoController {
             return false;
         }
 
-        // Se recarga desde MySQL porque cambiar el estado cambia también las colas
-        // de la zona de carga (un pedido entregado ya no está disponible).
         cargarPedidosDesdeDB();
         return true;
     }

@@ -81,8 +81,7 @@ public class PanelPedidos extends PanelSeccion {
     /** Mensaje de avance que se muestra mientras corre el reparto. */
     private final JLabel etiquetaEstado = new JLabel(" ");
 
-    private final JButton botonIniciarEntregas =
-            crearBotonAccion("Iniciar Entregas", '▶', COLOR_EDITAR);
+    private final JButton botonIniciarEntregas = crearBotonAccion("Iniciar Entregas", '▶', COLOR_EDITAR);
 
     /**
      * Filtros de tipo y estado. Guardan la opción {@value #TODOS} junto con los
@@ -127,7 +126,6 @@ public class PanelPedidos extends PanelSeccion {
         JScrollPane scroll = new JScrollPane(tabla);
         scroll.setBorder(BorderFactory.createEtchedBorder());
 
-        // Los botones del CRUD y los filtros van sobre la tabla
         JPanel encabezado = new JPanel(new BorderLayout(0, 8));
         encabezado.add(crearBarraDeAcciones(crearBotones()), BorderLayout.NORTH);
         encabezado.add(crearFiltros(), BorderLayout.CENTER);
@@ -193,8 +191,7 @@ public class PanelPedidos extends PanelSeccion {
         botonEliminar.addActionListener(e -> eliminar());
         botonActualizar.addActionListener(e -> recargarDesdeBaseDeDatos());
 
-        return new JButton[]{
-                botonNuevo, botonAsignar, botonEditar, botonEliminar, botonActualizar};
+        return new JButton[]{botonNuevo, botonAsignar, botonEditar, botonEliminar, botonActualizar};
     }
 
     /**
@@ -206,9 +203,6 @@ public class PanelPedidos extends PanelSeccion {
         JDialog dialog = new JDialog(ventanaPadre, "Registrar Nuevo Pedido", Dialog.ModalityType.APPLICATION_MODAL);
 
         PanelRegistrarPedido panelRegistrar = new PanelRegistrarPedido(pedidoController, () -> {
-            // Tras guardar: se cierra el diálogo, se rearma la tabla y se avisa a
-            // la ventana principal para que el resto de las secciones también vea
-            // el pedido nuevo.
             dialog.dispose();
             refrescar();
             avisarCambio();
@@ -313,7 +307,7 @@ public class PanelPedidos extends PanelSeccion {
         List<String> nombres = repartidorController.getNombresRepartidores();
         if (nombres.isEmpty()) {
             mostrarError("No hay repartidores registrados: registre uno en la sección"
-                    + " Registrar Repartidor antes de asignar el pedido.");
+                    + " Repartidores antes de asignar el pedido.");
             return;
         }
 
@@ -321,12 +315,10 @@ public class PanelPedidos extends PanelSeccion {
 
         JPanel formulario = crearFormulario();
         GridBagConstraints restricciones = crearRestricciones();
-        agregarFila(formulario, restricciones, 0, "Pedido:",
-                new JLabel("#" + pedido.getId() + " - " + pedido.getDireccionEntrega()));
+        agregarFila(formulario, restricciones, 0, "Pedido:", new JLabel("#" + pedido.getId() + " - " + pedido.getDireccionEntrega()));
         agregarFila(formulario, restricciones, 1, "Repartidor:", comboRepartidores);
 
-        int opcion = JOptionPane.showConfirmDialog(this, formulario,
-                "Asignar pedido #" + pedido.getId(),
+        int opcion = JOptionPane.showConfirmDialog(this, formulario, "Asignar pedido #" + pedido.getId(),
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (opcion != JOptionPane.OK_OPTION) {
             return;
@@ -336,8 +328,6 @@ public class PanelPedidos extends PanelSeccion {
         try {
             repartidorController.asignarRepartidor(pedido.getId(), repartidor);
 
-            // La asignación queda hecha en la zona de carga (en memoria); se guarda
-            // en MySQL para que no se pierda al recargar los pedidos.
             if (!pedidoController.editarPedido(pedido)) {
                 mostrarError("No se pudo guardar la asignación del pedido #" + pedido.getId()
                         + ": puede que ya no exista en la base de datos.");
@@ -346,8 +336,6 @@ public class PanelPedidos extends PanelSeccion {
                         + " asignado a " + repartidor + ".");
             }
         } catch (IllegalArgumentException | IllegalStateException | PersistenciaException ex) {
-            // Por ejemplo, cuando el pedido ya no está pendiente o ya fue retirado
-            // por un repartidor: se avisa y la tabla se vuelve a armar.
             mostrarError(ex.getMessage());
         }
         refrescar();
@@ -374,14 +362,8 @@ public class PanelPedidos extends PanelSeccion {
             protected String doInBackground() throws Exception {
                 String resumen = repartidorController.iniciarEntregas();
 
-                // Los hilos de reparto cambiaron el estado de los pedidos en
-                // memoria; se guardan en MySQL para que el avance persista.
                 pedidoController.guardarEstados();
 
-                // Cada pedido entregado queda además anotado en la tabla entrega,
-                // que es la lista de los pedidos que llegaron a su destino. Las dos
-                // escrituras van en este hilo y no en done(), para no dejar la
-                // interfaz esperando a la base de datos.
                 int anotadas = entregaController.registrarEntregasDelReparto();
 
                 return resumen + "\n\nEntregas anotadas en la sección Entregas: " + anotadas;
@@ -400,8 +382,6 @@ public class PanelPedidos extends PanelSeccion {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (ExecutionException e) {
-                    // Aquí llegan también los errores de MySQL al guardar los
-                    // estados o al anotar las entregas, envueltos por el SwingWorker.
                     Throwable causa = e.getCause() != null ? e.getCause() : e;
                     mostrarError(causa.getMessage());
                 }
@@ -421,11 +401,9 @@ public class PanelPedidos extends PanelSeccion {
         }
 
         JTextField campoDireccion = new JTextField(pedido.getDireccionEntrega(), 20);
-        JComboBox<TipoPedido> comboTipo =
-                new JComboBox<>(pedidoController.getTiposDePedido());
+        JComboBox<TipoPedido> comboTipo = new JComboBox<>(pedidoController.getTiposDePedido());
         comboTipo.setSelectedItem(pedido.getTipo());
-        JComboBox<EstadoPedido> comboEstado =
-                new JComboBox<>(pedidoController.getEstadosDePedido());
+        JComboBox<EstadoPedido> comboEstado = new JComboBox<>(pedidoController.getEstadosDePedido());
         comboEstado.setSelectedItem(pedido.getEstado());
 
         JPanel formulario = crearFormulario();
@@ -434,9 +412,7 @@ public class PanelPedidos extends PanelSeccion {
         agregarFila(formulario, restricciones, 1, "Tipo:", comboTipo);
         agregarFila(formulario, restricciones, 2, "Estado:", comboEstado);
 
-        int opcion = JOptionPane.showConfirmDialog(this, formulario,
-                "Editar pedido #" + pedido.getId(),
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        int opcion = JOptionPane.showConfirmDialog(this, formulario, "Editar pedido #" + pedido.getId(), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (opcion != JOptionPane.OK_OPTION) {
             return;
         }

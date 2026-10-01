@@ -61,8 +61,7 @@ public class EntregaController {
      * @param pedidoController     controlador de pedidos compartido
      * @param repartidorController controlador de repartidores compartido
      */
-    public EntregaController(PedidoController pedidoController,
-                             RepartidorController repartidorController) {
+    public EntregaController(PedidoController pedidoController, RepartidorController repartidorController) {
         this.pedidoController = pedidoController;
         this.repartidorController = repartidorController;
     }
@@ -98,10 +97,8 @@ public class EntregaController {
      * @return la entrega registrada, o {@code null} si no se pudo guardar
      * @throws IllegalArgumentException si algún dato falta o no es válido
      */
-    public Entrega registrarEntrega(int idPedido, int idRepartidor,
-                                    String fechaTexto, String horaTexto) {
-        return registrarEntrega(idPedido, idRepartidor,
-                convertirFecha(fechaTexto), convertirHora(horaTexto));
+    public Entrega registrarEntrega(int idPedido, int idRepartidor, String fechaTexto, String horaTexto) {
+        return registrarEntrega(idPedido, idRepartidor, convertirFecha(fechaTexto), convertirHora(horaTexto));
     }
 
     /**
@@ -115,8 +112,7 @@ public class EntregaController {
      * @return la entrega registrada, o {@code null} si no se pudo guardar
      * @throws IllegalArgumentException si algún dato falta o no es válido
      */
-    public Entrega registrarEntrega(int idPedido, int idRepartidor,
-                                    LocalDate fecha, LocalTime hora) {
+    public Entrega registrarEntrega(int idPedido, int idRepartidor, LocalDate fecha, LocalTime hora) {
         validarDatos(idPedido, idRepartidor, fecha, hora);
 
         Entrega existente = entregaDAO.buscarPorPedido(idPedido);
@@ -145,8 +141,7 @@ public class EntregaController {
      * @return {@code true} si la entrega fue actualizada
      * @throws IllegalArgumentException si algún dato falta o no es válido
      */
-    public boolean editarEntrega(int id, int idPedido, int idRepartidor,
-                                 String fechaTexto, String horaTexto) {
+    public boolean editarEntrega(int id, int idPedido, int idRepartidor, String fechaTexto, String horaTexto) {
         return editarEntrega(id, idPedido, idRepartidor,
                 convertirFecha(fechaTexto), convertirHora(horaTexto));
     }
@@ -164,12 +159,9 @@ public class EntregaController {
      *         ya no existe en la base de datos
      * @throws IllegalArgumentException si algún dato falta o no es válido
      */
-    public boolean editarEntrega(int id, int idPedido, int idRepartidor,
-                                 LocalDate fecha, LocalTime hora) {
+    public boolean editarEntrega(int id, int idPedido, int idRepartidor, LocalDate fecha, LocalTime hora) {
         validarDatos(idPedido, idRepartidor, fecha, hora);
 
-        // El pedido puede cambiar al editar, así que se vuelve a revisar que el
-        // pedido elegido no tenga ya otra entrega distinta de esta.
         Entrega delPedido = entregaDAO.buscarPorPedido(idPedido);
         if (delPedido != null && delPedido.getId() != id) {
             throw new IllegalArgumentException("El pedido #" + idPedido
@@ -209,8 +201,7 @@ public class EntregaController {
 
         int anotadas = 0;
         for (Pedido pedido : pedidoController.getPedidos()) {
-            if (pedido.getEstado() != EstadoPedido.ENTREGADO
-                    || conComprobante.contains(pedido.getId())) {
+            if (pedido.getEstado() != EstadoPedido.ENTREGADO || conComprobante.contains(pedido.getId())) {
                 continue;
             }
 
@@ -223,8 +214,7 @@ public class EntregaController {
                 continue;
             }
 
-            Entrega entrega = new Entrega(pedido.getId(), repartidor.getId(),
-                    LocalDate.now(), LocalTime.now().withSecond(0).withNano(0));
+            Entrega entrega = new Entrega(pedido.getId(), repartidor.getId(), LocalDate.now(), LocalTime.now().withSecond(0).withNano(0));
             if (entregaDAO.agregar(entrega)) {
                 anotadas++;
             }
@@ -339,8 +329,6 @@ public class EntregaController {
         Pedido pedido = pedidoController.buscarPedido(idPedido);
         Repartidor repartidor = repartidorController.buscarRepartidor(idRepartidor);
         if (pedido == null || repartidor == null) {
-            // Existen en MySQL, porque validarDatos ya lo comprobó, pero no están
-            // cargados en memoria: el estado correcto llegará al recargar la vista.
             return;
         }
 
@@ -351,10 +339,6 @@ public class EntregaController {
                 repartidor.sumarEntrega();
             }
         } catch (IllegalArgumentException | IllegalStateException e) {
-            // El pedido está en reparto en este momento, así que es el hilo del
-            // repartidor el que registrará la entrega. La entrega queda guardada
-            // igual y el aviso va a la consola, porque no es un error que deba
-            // detener el registro.
             System.out.println("[EntregaController] El pedido #" + idPedido
                     + " no se pudo cerrar como entregado por " + repartidor.getNombre()
                     + ": " + e.getMessage());
