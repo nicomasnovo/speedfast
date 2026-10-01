@@ -9,6 +9,7 @@ import cl.duocuc.model.Repartidor;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -19,11 +20,9 @@ import java.util.List;
  * Para no duplicar reglas que ya existían, este controlador reutiliza los
  * controladores de pedidos y repartidores en vez de repetir su lógica:
  * <ul>
- *   <li>{@link PedidoController} le dice si el pedido existe y guarda sus
- *       cambios;</li>
- *   <li>{@link RepartidorController} le dice si el repartidor existe y es el que
- *       sabe reservar un pedido para un repartidor con
- *       {@link RepartidorController#asignarRepartidor(int, String)}.</li>
+ *   <li>{@link PedidoController} le dice si el pedido existe, lo cierra como
+ *       entregado y guarda sus cambios;</li>
+ *   <li>{@link RepartidorController} le dice si el repartidor existe.</li>
  * </ul>
  * Las reglas propias de las entregas son:
  * <ul>
@@ -31,11 +30,16 @@ import java.util.List;
  *   <li>el pedido y el repartidor deben existir en la base de datos, para no
  *       chocar con las llaves foráneas de la tabla {@code entrega};</li>
  *   <li>un pedido puede tener una sola entrega registrada;</li>
- *   <li>registrar la entrega de un pedido que todavía está
- *       {@link EstadoPedido#PENDIENTE} y sin repartidor lo deja asignado al
- *       repartidor de esa entrega. El cambio de estado a
- *       {@link EstadoPedido#EN_REPARTO} y {@link EstadoPedido#ENTREGADO} lo sigue
- *       haciendo el reparto de la sección Registrar Entrega, que no se toca.</li>
+ *   <li>registrar una entrega significa que el pedido llegó a su destino: queda en
+ *       estado {@link EstadoPedido#ENTREGADO}, a nombre del repartidor de la
+ *       entrega y contado como entregado. Registrar una entrega no es lo mismo que
+ *       asignar un pedido: la asignación, que solo reserva un pedido
+ *       {@link EstadoPedido#PENDIENTE} para un repartidor, se hace con el botón
+ *       Asignar de la sección Pedidos.</li>
+ *   <li>lo mismo vale al revés: los pedidos que los repartidores entregan durante
+ *       el reparto quedan anotados en la tabla {@code entrega} con
+ *       {@link #registrarEntregasDelReparto()}, para que la sección Entregas sea
+ *       siempre la lista de los pedidos entregados.</li>
  * </ul>
  */
 public class EntregaController {
@@ -102,8 +106,7 @@ public class EntregaController {
 
     /**
      * Registra una entrega con los datos ya convertidos: valida, la guarda en
-     * MySQL y, si el pedido seguía pendiente y sin repartidor, se lo asigna al
-     * repartidor de la entrega reutilizando {@link RepartidorController}.
+     * MySQL y deja el pedido entregado por el repartidor de la entrega.
      *
      * @param idPedido     identificador del pedido entregado
      * @param idRepartidor identificador del repartidor que la realizó
@@ -127,7 +130,7 @@ public class EntregaController {
             return null;
         }
 
-        asignarRepartidorSiCorresponde(idPedido, idRepartidor);
+        cerrarPedidoComoEntregado(idPedido, idRepartidor);
         return entrega;
     }
 
@@ -149,8 +152,8 @@ public class EntregaController {
     }
 
     /**
-     * Edita una entrega con los datos ya convertidos: valida y guarda los cambios
-     * en MySQL.
+     * Edita una entrega con los datos ya convertidos: valida, guarda los cambios en
+     * MySQL y deja el pedido entregado por el repartidor que quedó en la entrega.
      *
      * @param id           identificador de la entrega que se edita
      * @param idPedido     identificador del pedido entregado
@@ -178,14 +181,83 @@ public class EntregaController {
             return false;
         }
 
-        asignarRepartidorSiCorresponde(idPedido, idRepartidor);
+        cerrarPedidoComoEntregado(idPedido, idRepartidor);
         return true;
+    }
+
+    /**
+     * Anota en la tabla {@code entrega} los pedidos que ya figuran entregados y
+     * todavía no tienen comprobante. La usa la sección Pedidos después de un
+     * reparto: los hilos de los repartidores dejan los pedidos en
+     * {@link EstadoPedido#ENTREGADO}, y aquí cada uno de esos pedidos queda además
+     * listado como entrega del repartidor que se hizo cargo, con la fecha y la hora
+     * en que se anotó.
+     * <p>
+     * Un pedido que ya tenía su entrega registrada se salta, de modo que repetir el
+     * reparto no duplique comprobantes. También se saltan los pedidos cuyo
+     * repartidor no está en la lista de repartidores, porque la tabla
+     * {@code entrega} necesita su identificador.
+     *
+     * @return la cantidad de entregas que quedaron anotadas
+     * @throws cl.duocuc.exception.PersistenciaException si la base de datos no responde
+     */
+    public int registrarEntregasDelReparto() {
+        List<Integer> conComprobante = new ArrayList<>();
+        for (Entrega registrada : entregaDAO.listarTodos()) {
+            conComprobante.add(registrada.getIdPedido());
+        }
+
+        int anotadas = 0;
+        for (Pedido pedido : pedidoController.getPedidos()) {
+            if (pedido.getEstado() != EstadoPedido.ENTREGADO
+                    || conComprobante.contains(pedido.getId())) {
+                continue;
+            }
+
+            Repartidor repartidor = buscarRepartidorPorNombre(pedido.getRepartidorAsignado());
+            if (repartidor == null || repartidor.getId() <= 0) {
+                System.out.println("[EntregaController] El pedido #" + pedido.getId()
+                        + " está entregado, pero su repartidor ("
+                        + pedido.getRepartidorAsignado()
+                        + ") no permite anotar la entrega.");
+                continue;
+            }
+
+            Entrega entrega = new Entrega(pedido.getId(), repartidor.getId(),
+                    LocalDate.now(), LocalTime.now().withSecond(0).withNano(0));
+            if (entregaDAO.agregar(entrega)) {
+                anotadas++;
+            }
+        }
+        return anotadas;
+    }
+
+    /**
+     * Busca entre los repartidores cargados al que lleva un nombre. El pedido
+     * guarda el nombre del repartidor y la tabla {@code entrega} necesita su
+     * identificador, así que hay que traducir uno al otro.
+     *
+     * @param nombre nombre del repartidor, tal como lo guarda el pedido
+     * @return el repartidor con ese nombre, o {@code null} si no hay ninguno
+     */
+    private Repartidor buscarRepartidorPorNombre(String nombre) {
+        if (nombre == null) {
+            return null;
+        }
+        for (Repartidor repartidor : repartidorController.getRepartidores()) {
+            if (nombre.equals(repartidor.getNombre())) {
+                return repartidor;
+            }
+        }
+        return null;
     }
 
     /**
      * Elimina una entrega de la base de datos. El pedido y el repartidor no se
      * tocan: borrar el registro de la entrega no borra ni el pedido ni la persona
-     * que lo repartió.
+     * que lo repartió, y el pedido sigue entregado, porque lo que se borra es el
+     * comprobante y no el hecho de que llegó a su destino. Para devolver un pedido
+     * a {@link EstadoPedido#PENDIENTE} se usa el botón Editar de la sección Pedidos.
      *
      * @param id identificador de la entrega
      * @return {@code true} si la entrega fue eliminada; {@code false} si la fila ya
@@ -251,39 +323,40 @@ public class EntregaController {
     }
 
     /**
-     * Deja el pedido a cargo del repartidor de la entrega cuando el pedido todavía
-     * está pendiente y no tiene a nadie asignado. Reutiliza la asignación que ya
-     * existía en {@link RepartidorController} y la persiste con
-     * {@link PedidoController#editarPedido(Pedido)}.
+     * Cierra el pedido de la entrega: lo deja en estado
+     * {@link EstadoPedido#ENTREGADO} a nombre del repartidor que la realizó,
+     * delegando en {@link PedidoController#marcarEntregado(int, String)}, y le suma
+     * la entrega a ese repartidor.
      * <p>
-     * Si el pedido ya está en reparto, entregado o ya tenía un repartidor, no se
-     * cambia nada: la entrega solo queda registrada.
+     * Si el pedido ya figuraba como entregado solo cambia el repartidor y la
+     * entrega no se vuelve a contar, de modo que corregir una entrega existente no
+     * infle los totales.
      *
      * @param idPedido     identificador del pedido de la entrega
      * @param idRepartidor identificador del repartidor de la entrega
      */
-    private void asignarRepartidorSiCorresponde(int idPedido, int idRepartidor) {
+    private void cerrarPedidoComoEntregado(int idPedido, int idRepartidor) {
         Pedido pedido = pedidoController.buscarPedido(idPedido);
-        if (pedido == null
-                || pedido.getEstado() != EstadoPedido.PENDIENTE
-                || pedido.getRepartidorAsignado() != null) {
-            return;
-        }
-
         Repartidor repartidor = repartidorController.buscarRepartidor(idRepartidor);
-        if (repartidor == null) {
+        if (pedido == null || repartidor == null) {
+            // Existen en MySQL, porque validarDatos ya lo comprobó, pero no están
+            // cargados en memoria: el estado correcto llegará al recargar la vista.
             return;
         }
 
+        boolean yaEstabaEntregado = pedido.getEstado() == EstadoPedido.ENTREGADO;
         try {
-            repartidorController.asignarRepartidor(idPedido, repartidor.getNombre());
-            pedidoController.editarPedido(pedido);
+            pedidoController.marcarEntregado(idPedido, repartidor.getNombre());
+            if (!yaEstabaEntregado) {
+                repartidor.sumarEntrega();
+            }
         } catch (IllegalArgumentException | IllegalStateException e) {
-            // El pedido ya fue tomado por un repartidor mientras se registraba la
-            // entrega. La entrega queda guardada igual y el aviso va a la consola,
-            // porque no es un error que deba detener el registro.
+            // El pedido está en reparto en este momento, así que es el hilo del
+            // repartidor el que registrará la entrega. La entrega queda guardada
+            // igual y el aviso va a la consola, porque no es un error que deba
+            // detener el registro.
             System.out.println("[EntregaController] El pedido #" + idPedido
-                    + " no se pudo asignar a " + repartidor.getNombre()
+                    + " no se pudo cerrar como entregado por " + repartidor.getNombre()
                     + ": " + e.getMessage());
         }
     }

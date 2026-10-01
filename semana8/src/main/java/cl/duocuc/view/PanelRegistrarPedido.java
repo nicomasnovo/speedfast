@@ -15,9 +15,9 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 
 /**
- * Sección para registrar un pedido. Es el mismo formulario que antes vivía en la
- * ventana {@code VentanaRegistroPedido}, ahora como {@link JPanel} para poder
- * mostrarse dentro del área central de la {@link VentanaPrincipal}.
+ * Formulario para registrar un pedido. Es un {@link JPanel}, así que no abre una
+ * ventana por su cuenta: lo muestra el botón Nuevo de {@link PanelPedidos} dentro
+ * de un diálogo modal.
  * <p>
  * La lógica no cambia: toma los datos, los entrega al {@link PedidoController} y
  * muestra el resultado con un {@link JOptionPane}.

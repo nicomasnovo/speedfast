@@ -151,6 +151,38 @@ public class ZonaDeCarga {
     }
 
     /**
+     * Deja un pedido como entregado por un repartidor sin pasar por el reparto
+     * concurrente. Se usa cuando la entrega se registra a mano desde la sección
+     * Entregas: el pedido sale de la cola en que estuviera para que ningún
+     * repartidor lo vuelva a retirar, queda a nombre de quien lo entregó y se suma
+     * al contador de entregas.
+     *
+     * @param pedido           pedido que se entregó
+     * @param nombreRepartidor nombre del repartidor que lo entregó
+     * @throws IllegalStateException si el pedido ya figura como entregado o está en
+     *                               reparto, porque en ambos casos contar la
+     *                               entrega aquí la contaría dos veces
+     */
+    public synchronized void marcarEntregado(Pedido pedido, String nombreRepartidor) {
+        if (pedido.getEstado() == EstadoPedido.ENTREGADO) {
+            throw new IllegalStateException("El pedido #" + pedido.getId()
+                    + " ya figura como entregado.");
+        }
+        if (pedido.getEstado() == EstadoPedido.EN_REPARTO) {
+            throw new IllegalStateException("El pedido #" + pedido.getId()
+                    + " está en reparto en este momento: su entrega la registrará"
+                    + " el repartidor que lo retiró.");
+        }
+
+        quitarDeLasColas(pedido);
+        pedido.setRepartidorAsignado(nombreRepartidor);
+        pedido.setEstado(EstadoPedido.ENTREGADO);
+        entregados++;
+        System.out.println("[ZonaDeCarga] Pedido #" + pedido.getId()
+                + " entregado por " + nombreRepartidor);
+    }
+
+    /**
      * Saca un pedido de la cola general o de la cola propia en que se encuentre.
      *
      * @param pedido pedido que se quiere quitar

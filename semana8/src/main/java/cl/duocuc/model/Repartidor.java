@@ -81,6 +81,13 @@ public class Repartidor implements Runnable {
     public int getEntregas() { return entregas; }
 
     /**
+     * Suma una entrega al repartidor. La usa el registro de entregas de la sección
+     * Entregas, donde la entrega la anota el usuario y no el hilo del repartidor,
+     * para que el total mostrado incluya también esas entregas.
+     */
+    public void sumarEntrega() { entregas++; }
+
+    /**
      * Entrega la descripción del repartidor con su nombre y su identificador, de
      * modo que los componentes Swing (por ejemplo, el desplegable de repartidores
      * de la sección de entregas) la muestren directamente.

@@ -133,6 +133,39 @@ public class PedidoController {
     }
 
     /**
+     * Cierra un pedido como entregado por un repartidor y guarda el cambio en
+     * MySQL. Lo usa {@link EntregaController} cuando el usuario registra una
+     * entrega: una entrega no solo asigna el pedido, lo deja entregado.
+     * <p>
+     * Si el pedido ya figuraba como entregado solo se actualiza quién lo entregó,
+     * de modo que corregir la entrega no vuelva a sumarla al total.
+     *
+     * @param idPedido         identificador del pedido entregado
+     * @param nombreRepartidor nombre del repartidor que lo entregó
+     * @return {@code true} si el pedido quedó actualizado en la base de datos
+     * @throws IllegalArgumentException si el pedido no está en la zona de carga o
+     *                                  no se indica el repartidor
+     * @throws IllegalStateException    si el pedido está en reparto en ese momento
+     */
+    public boolean marcarEntregado(int idPedido, String nombreRepartidor) {
+        Pedido pedido = zonaDeCarga.buscarPedido(idPedido);
+        if (pedido == null) {
+            throw new IllegalArgumentException("No existe un pedido con el ID " + idPedido + ".");
+        }
+        if (nombreRepartidor == null || nombreRepartidor.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Debe indicar el repartidor que entregó el pedido.");
+        }
+
+        if (pedido.getEstado() == EstadoPedido.ENTREGADO) {
+            pedido.setRepartidorAsignado(nombreRepartidor);
+        } else {
+            zonaDeCarga.marcarEntregado(pedido, nombreRepartidor);
+        }
+        return editarPedido(pedido);
+    }
+
+    /**
      * Edita un pedido con los datos que llegan desde el formulario de la vista:
      * valida, guarda los cambios en MySQL y recarga la zona de carga para que la
      * lista en memoria quede igual que la base de datos.
@@ -144,8 +177,8 @@ public class PedidoController {
      *       {@link EstadoPedido#EN_REPARTO} ni {@link EstadoPedido#ENTREGADO},
      *       porque alguien tiene que hacerse cargo de la entrega.</li>
      * </ul>
-     * El repartidor ya asignado se conserva: se cambia desde la sección de
-     * entregas, no desde este formulario.
+     * El repartidor ya asignado se conserva: se cambia con el botón Asignar del
+     * listado, no desde este formulario.
      *
      * @param id        identificador del pedido que se edita
      * @param direccion dirección de entrega nueva
@@ -175,7 +208,7 @@ public class PedidoController {
         if (estado != EstadoPedido.PENDIENTE && repartidorAsignado == null) {
             throw new IllegalStateException("El pedido #" + id + " no puede quedar en estado "
                     + estado + " sin un repartidor asignado. "
-                    + "Asigne primero un repartidor en la sección Registrar Entrega.");
+                    + "Asigne primero un repartidor con el botón Asignar de la sección Pedidos.");
         }
 
         // Los cambios se llevan en un pedido aparte: si la base de datos rechaza la
@@ -234,7 +267,7 @@ public class PedidoController {
             throw new IllegalStateException("No se puede eliminar el pedido #" + id
                     + " porque tiene " + entregas
                     + (entregas == 1 ? " entrega registrada." : " entregas registradas.")
-                    + " Elimine primero esas entregas en la sección Ver Entregas.");
+                    + " Elimine primero esas entregas en la sección Entregas.");
         }
 
         if (!pedidoDAO.eliminar(id)) {

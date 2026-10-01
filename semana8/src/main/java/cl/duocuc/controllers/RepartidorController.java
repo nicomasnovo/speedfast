@@ -176,7 +176,7 @@ public class RepartidorController {
             throw new IllegalStateException("No se puede eliminar " + quien
                     + " porque tiene " + entregas
                     + (entregas == 1 ? " entrega registrada." : " entregas registradas.")
-                    + " Elimine primero esas entregas en la sección Ver Entregas.");
+                    + " Elimine primero esas entregas en la sección Entregas.");
         }
 
         if (!repartidorDAO.eliminar(id)) {

@@ -32,9 +32,7 @@ import java.awt.event.ActionListener;
 public class VentanaPrincipal extends JFrame {
 
     /** Nombres de las tarjetas del {@link CardLayout}. */
-    private static final String PEDIDO = "PEDIDO";
     private static final String REPARTIDOR = "REPARTIDOR";
-    private static final String ENTREGA = "ENTREGA";
     private static final String PEDIDOS = "PEDIDOS";
     private static final String ENTREGAS = "ENTREGAS";
 
@@ -49,11 +47,9 @@ public class VentanaPrincipal extends JFrame {
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel panelContenido = new JPanel(cardLayout);
 
-    private final PanelRegistrarPedido panelRegistrarPedido;
     private final PanelRegistrarRepartidor panelRegistrarRepartidor;
-    private final PanelRegistrarEntrega panelRegistrarEntrega;
     private final PanelPedidos panelPedidos;
-    private final PanelVerEntregas panelVerEntregas;
+    private final PanelEntregas panelEntregas;
 
     /**
      * Crea la ventana principal con los controladores que comparte toda la aplicación.
@@ -65,35 +61,34 @@ public class VentanaPrincipal extends JFrame {
     public VentanaPrincipal(PedidoController pedidoController,
                             RepartidorController repartidorController,
                             EntregaController entregaController) {
-        this.panelRegistrarPedido =
-                new PanelRegistrarPedido(pedidoController, this::refrescarVistas);
         this.panelRegistrarRepartidor =
                 new PanelRegistrarRepartidor(repartidorController, this::refrescarVistas);
-        this.panelRegistrarEntrega = new PanelRegistrarEntrega(
-                pedidoController, repartidorController, this::refrescarVistas);
-        // El botón Nuevo del listado abre la sección de registro: la navegación es
-        // responsabilidad de la vista, no del controlador.
-        this.panelPedidos = new PanelPedidos(pedidoController, () -> mostrar(PEDIDO));
-        this.panelVerEntregas = new PanelVerEntregas(entregaController, this::refrescarVistas);
+        // Los pedidos se registran, se asignan y se reparten desde su propio
+        // listado, con diálogos y botones de la sección, así que el menú no necesita
+        // secciones aparte para registrar ni para asignar pedidos.
+        this.panelPedidos = new PanelPedidos(
+                pedidoController, repartidorController, entregaController, this::refrescarVistas);
+        this.panelEntregas = new PanelEntregas(entregaController, this::refrescarVistas);
 
         setTitle("SpeedFast - Sistema de Gestión de Entregas");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        panelContenido.add(panelRegistrarPedido, PEDIDO);
         panelContenido.add(panelRegistrarRepartidor, REPARTIDOR);
-        panelContenido.add(panelRegistrarEntrega, ENTREGA);
         panelContenido.add(panelPedidos, PEDIDOS);
-        panelContenido.add(panelVerEntregas, ENTREGAS);
+        panelContenido.add(panelEntregas, ENTREGAS);
 
         add(crearEncabezado(), BorderLayout.NORTH);
         add(crearMenuLateral(), BorderLayout.WEST);
         add(panelContenido, BorderLayout.CENTER);
         add(crearPiePagina(), BorderLayout.SOUTH);
 
-        mostrar(PEDIDO);
+        mostrar(PEDIDOS);
 
-        setMinimumSize(new Dimension(760, 480));
+        // El mínimo deja entrar completa la barra de cinco botones del CRUD: con
+        // menos ancho, FlowLayout manda el último botón a una segunda fila que la
+        // barra no tiene alto para mostrar.
+        setMinimumSize(new Dimension(860, 500));
         setSize(900, 540);
         setLocationRelativeTo(null);
     }
@@ -130,11 +125,9 @@ public class VentanaPrincipal extends JFrame {
                 BorderFactory.createMatteBorder(0, 0, 0, 1, Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(20, 15, 20, 15)));
 
-        agregarBotonMenu(menu, "Registrar Pedido", PEDIDO);
-        agregarBotonMenu(menu, "Registrar Repartidor", REPARTIDOR);
-        agregarBotonMenu(menu, "Registrar Entrega", ENTREGA);
-        agregarBotonMenu(menu, "Ver Pedidos", PEDIDOS);
-        agregarBotonMenu(menu, "Ver Entregas", ENTREGAS);
+        agregarBotonMenu(menu, "Repartidores", REPARTIDOR);
+        agregarBotonMenu(menu, "Pedidos", PEDIDOS);
+        agregarBotonMenu(menu, "Entregas", ENTREGAS);
         menu.add(Box.createVerticalGlue());
         agregarBoton(menu, "Salir", e -> salir());
         return menu;
@@ -210,11 +203,9 @@ public class VentanaPrincipal extends JFrame {
      */
     private void mostrar(String tarjeta) {
         switch (tarjeta) {
-            case PEDIDO -> panelRegistrarPedido.limpiar();
             case REPARTIDOR -> panelRegistrarRepartidor.refrescar();
-            case ENTREGA -> panelRegistrarEntrega.recargar();
             case PEDIDOS -> panelPedidos.refrescar();
-            case ENTREGAS -> panelVerEntregas.recargar();
+            case ENTREGAS -> panelEntregas.recargar();
             default -> { }
         }
         cardLayout.show(panelContenido, tarjeta);
@@ -226,8 +217,7 @@ public class VentanaPrincipal extends JFrame {
      */
     private void refrescarVistas() {
         panelRegistrarRepartidor.refrescar();
-        panelRegistrarEntrega.recargar();
         panelPedidos.refrescar();
-        panelVerEntregas.recargar();
+        panelEntregas.recargar();
     }
 }

@@ -36,7 +36,7 @@ abstract class PanelSeccion extends JPanel {
     protected static final Color COLOR_ELIMINAR = new Color(220, 53, 69);
 
     /** Color del botón que vuelve a leer los datos. */
-    protected static final Color COLOR_ACTUALIZAR = new Color(233, 236, 239);
+    protected static final Color COLOR_ACTUALIZAR = new Color(255, 227, 102, 255);
 
     /** Color con que se muestra un botón deshabilitado. */
     private static final Color COLOR_DESHABILITADO = new Color(206, 212, 218);

@@ -1,6 +1,8 @@
 package cl.duocuc.view;
 
+import cl.duocuc.controllers.EntregaController;
 import cl.duocuc.controllers.PedidoController;
+import cl.duocuc.controllers.RepartidorController;
 import cl.duocuc.exception.PersistenciaException;
 import cl.duocuc.model.EstadoPedido;
 import cl.duocuc.model.Pedido;
@@ -9,6 +11,7 @@ import cl.duocuc.model.TipoPedido;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -16,23 +19,37 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.Dialog;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
+import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
- * Sección con el listado de pedidos en una {@link JTable} de solo lectura y las
- * operaciones que se hacen sobre él: editar, eliminar, filtrar y volver a leer
- * desde MySQL.
+ * Sección con el listado de pedidos en una {@link JTable} de solo lectura y todas
+ * las operaciones que se hacen sobre ellos: registrar, asignar a un repartidor,
+ * editar, eliminar, filtrar, volver a leer desde MySQL e iniciar el reparto.
+ *
+ * <p>
+ * El pedido sobre el que se trabaja es siempre el de la fila seleccionada, así que
+ * asignar un repartidor ya no necesita su propia sección ni un desplegable de
+ * pedidos: basta elegir la fila y pulsar Asignar. El botón Iniciar Entregas, en
+ * cambio, es una acción general sobre toda la zona de carga, por lo que va en el
+ * pie de la sección y no en la barra del CRUD.
+ *
  * <p>
  * Los datos se toman siempre desde el {@link PedidoController}, sin mantener una
  * copia propia y sin consultar la base de datos desde la vista
  * (vista → controlador → DAO → ConexionBD → MySQL). Los mensajes, incluidos los
  * errores de base de datos que llegan como {@link PersistenciaException}, se
  * muestran aquí con {@link JOptionPane}.
+ *
  * <p>
  * Los filtros por tipo y por estado solo cambian qué pedidos se muestran: no
  * modifican ningún registro, porque trabajan sobre la lista que entrega el
@@ -48,12 +65,24 @@ public class PanelPedidos extends PanelSeccion {
 
     private final PedidoController pedidoController;
 
-    /** Acción con que la ventana principal abre la sección de registro. */
-    private final Runnable alPedirNuevo;
+    /** Necesario para asignar pedidos y para lanzar el reparto concurrente. */
+    private final RepartidorController repartidorController;
+
+    /** Necesario para anotar como entregas los pedidos que reparte el reparto. */
+    private final EntregaController entregaController;
+
+    /** Aviso que la ventana principal usa para refrescar las demás secciones. */
+    private final Runnable alCambiar;
 
     private final DefaultTableModel modeloTabla;
     private final JTable tabla;
     private final JLabel etiquetaResumen = new JLabel(" ");
+
+    /** Mensaje de avance que se muestra mientras corre el reparto. */
+    private final JLabel etiquetaEstado = new JLabel(" ");
+
+    private final JButton botonIniciarEntregas =
+            crearBotonAccion("Iniciar Entregas", '▶', COLOR_EDITAR);
 
     /**
      * Filtros de tipo y estado. Guardan la opción {@value #TODOS} junto con los
@@ -69,13 +98,20 @@ public class PanelPedidos extends PanelSeccion {
     /**
      * Crea el listado de pedidos.
      *
-     * @param pedidoController controlador de pedidos compartido
-     * @param alPedirNuevo     acción que abre la sección Registrar Pedido
+     * @param pedidoController     controlador de pedidos compartido
+     * @param repartidorController controlador de repartidores compartido
+     * @param entregaController    controlador de entregas compartido
+     * @param alCambiar            acción que se ejecuta cuando cambian los datos
      */
-    public PanelPedidos(PedidoController pedidoController, Runnable alPedirNuevo) {
+    public PanelPedidos(PedidoController pedidoController,
+                        RepartidorController repartidorController,
+                        EntregaController entregaController,
+                        Runnable alCambiar) {
         super("Gestión de Pedidos");
         this.pedidoController = pedidoController;
-        this.alPedirNuevo = alPedirNuevo;
+        this.repartidorController = repartidorController;
+        this.entregaController = entregaController;
+        this.alCambiar = alCambiar;
         this.modeloTabla = new DefaultTableModel(COLUMNAS, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -91,8 +127,7 @@ public class PanelPedidos extends PanelSeccion {
         JScrollPane scroll = new JScrollPane(tabla);
         scroll.setBorder(BorderFactory.createEtchedBorder());
 
-        // Los botones del CRUD y los filtros van sobre la tabla, como en la
-        // interfaz referencial de la actividad.
+        // Los botones del CRUD y los filtros van sobre la tabla
         JPanel encabezado = new JPanel(new BorderLayout(0, 8));
         encabezado.add(crearBarraDeAcciones(crearBotones()), BorderLayout.NORTH);
         encabezado.add(crearFiltros(), BorderLayout.CENTER);
@@ -147,26 +182,61 @@ public class PanelPedidos extends PanelSeccion {
      */
     private JButton[] crearBotones() {
         JButton botonNuevo = crearBotonAccion("Nuevo", '+', COLOR_NUEVO);
+        JButton botonAsignar = crearBotonAccion("Asignar", '→', COLOR_EDITAR);
         JButton botonEditar = crearBotonAccion("Editar", '✎', COLOR_EDITAR);
         JButton botonEliminar = crearBotonAccion("Eliminar", '✕', COLOR_ELIMINAR);
         JButton botonActualizar = crearBotonAccion("Actualizar", '↻', COLOR_ACTUALIZAR);
 
-        botonNuevo.addActionListener(e -> alPedirNuevo.run());
+        botonNuevo.addActionListener(e -> abrirVentanaNuevoPedido());
+        botonAsignar.addActionListener(e -> asignar());
         botonEditar.addActionListener(e -> editar());
         botonEliminar.addActionListener(e -> eliminar());
         botonActualizar.addActionListener(e -> recargarDesdeBaseDeDatos());
 
-        return new JButton[]{botonNuevo, botonEditar, botonEliminar, botonActualizar};
+        return new JButton[]{
+                botonNuevo, botonAsignar, botonEditar, botonEliminar, botonActualizar};
     }
 
     /**
-     * Arma el pie con el resumen de lo que se está mostrando.
+     * Abre el formulario {@link PanelRegistrarPedido} dentro de un diálogo
+     * emergente modal, para registrar un pedido sin salir del listado.
+     */
+    private void abrirVentanaNuevoPedido() {
+        Window ventanaPadre = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(ventanaPadre, "Registrar Nuevo Pedido", Dialog.ModalityType.APPLICATION_MODAL);
+
+        PanelRegistrarPedido panelRegistrar = new PanelRegistrarPedido(pedidoController, () -> {
+            // Tras guardar: se cierra el diálogo, se rearma la tabla y se avisa a
+            // la ventana principal para que el resto de las secciones también vea
+            // el pedido nuevo.
+            dialog.dispose();
+            refrescar();
+            avisarCambio();
+        });
+
+        dialog.getContentPane().add(panelRegistrar);
+        dialog.pack();
+        dialog.setLocationRelativeTo(ventanaPadre);
+        dialog.setVisible(true);
+    }
+
+    /**
+     * Arma el pie con el resumen de lo que se está mostrando y, a la derecha, el
+     * inicio del reparto con su mensaje de avance. El reparto va aquí porque no
+     * depende de la fila seleccionada: actúa sobre todos los pedidos asignados.
      *
      * @return el panel del pie de página
      */
     private JPanel crearPiePagina() {
-        JPanel panel = new JPanel(new BorderLayout());
+        botonIniciarEntregas.addActionListener(e -> iniciarEntregas());
+
+        JPanel contenedorBoton = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        contenedorBoton.add(etiquetaEstado);
+        contenedorBoton.add(botonIniciarEntregas);
+
+        JPanel panel = new JPanel(new BorderLayout(10, 0));
         panel.add(etiquetaResumen, BorderLayout.WEST);
+        panel.add(contenedorBoton, BorderLayout.EAST);
         return panel;
     }
 
@@ -225,6 +295,118 @@ public class PanelPedidos extends PanelSeccion {
      */
     private EstadoPedido getFiltroEstado() {
         return comboFiltroEstado.getSelectedItem() instanceof EstadoPedido estado ? estado : null;
+    }
+
+    /**
+     * Asigna el pedido seleccionado a un repartidor. La reserva la sigue haciendo
+     * {@link RepartidorController} sobre la zona de carga, igual que cuando la
+     * asignación tenía su propia sección; aquí solo se elige el repartidor, porque
+     * el pedido es el de la fila seleccionada.
+     */
+    private void asignar() {
+        Pedido pedido = getPedidoSeleccionado();
+        if (pedido == null) {
+            mostrarError("Debe seleccionar un pedido de la tabla para asignarlo.");
+            return;
+        }
+
+        List<String> nombres = repartidorController.getNombresRepartidores();
+        if (nombres.isEmpty()) {
+            mostrarError("No hay repartidores registrados: registre uno en la sección"
+                    + " Registrar Repartidor antes de asignar el pedido.");
+            return;
+        }
+
+        JComboBox<String> comboRepartidores = new JComboBox<>(nombres.toArray(new String[0]));
+
+        JPanel formulario = crearFormulario();
+        GridBagConstraints restricciones = crearRestricciones();
+        agregarFila(formulario, restricciones, 0, "Pedido:",
+                new JLabel("#" + pedido.getId() + " - " + pedido.getDireccionEntrega()));
+        agregarFila(formulario, restricciones, 1, "Repartidor:", comboRepartidores);
+
+        int opcion = JOptionPane.showConfirmDialog(this, formulario,
+                "Asignar pedido #" + pedido.getId(),
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (opcion != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String repartidor = (String) comboRepartidores.getSelectedItem();
+        try {
+            repartidorController.asignarRepartidor(pedido.getId(), repartidor);
+
+            // La asignación queda hecha en la zona de carga (en memoria); se guarda
+            // en MySQL para que no se pierda al recargar los pedidos.
+            if (!pedidoController.editarPedido(pedido)) {
+                mostrarError("No se pudo guardar la asignación del pedido #" + pedido.getId()
+                        + ": puede que ya no exista en la base de datos.");
+            } else {
+                JOptionPane.showMessageDialog(this, "Pedido #" + pedido.getId()
+                        + " asignado a " + repartidor + ".");
+            }
+        } catch (IllegalArgumentException | IllegalStateException | PersistenciaException ex) {
+            // Por ejemplo, cuando el pedido ya no está pendiente o ya fue retirado
+            // por un repartidor: se avisa y la tabla se vuelve a armar.
+            mostrarError(ex.getMessage());
+        }
+        refrescar();
+        avisarCambio();
+    }
+
+    /**
+     * Lanza el reparto concurrente sin bloquear el Event Dispatch Thread: la lógica
+     * existente del controlador se ejecuta en un {@link SwingWorker} y el resultado
+     * se muestra cuando termina.
+     * <p>
+     * Al terminar el reparto se guardan los estados en MySQL y los pedidos que
+     * quedaron entregados se anotan en la tabla {@code entrega}, de modo que la
+     * sección Entregas liste todos los pedidos entregados, los que se registran a
+     * mano y los que reparten los repartidores.
+     */
+    private void iniciarEntregas() {
+        botonIniciarEntregas.setEnabled(false);
+        etiquetaEstado.setText("Reparto en curso...");
+
+        new SwingWorker<String, Void>() {
+
+            @Override
+            protected String doInBackground() throws Exception {
+                String resumen = repartidorController.iniciarEntregas();
+
+                // Los hilos de reparto cambiaron el estado de los pedidos en
+                // memoria; se guardan en MySQL para que el avance persista.
+                pedidoController.guardarEstados();
+
+                // Cada pedido entregado queda además anotado en la tabla entrega,
+                // que es la lista de los pedidos que llegaron a su destino. Las dos
+                // escrituras van en este hilo y no en done(), para no dejar la
+                // interfaz esperando a la base de datos.
+                int anotadas = entregaController.registrarEntregasDelReparto();
+
+                return resumen + "\n\nEntregas anotadas en la sección Entregas: " + anotadas;
+            }
+
+            @Override
+            protected void done() {
+                botonIniciarEntregas.setEnabled(true);
+                etiquetaEstado.setText(" ");
+                try {
+                    String resumen = get();
+                    refrescar();
+                    avisarCambio();
+                    JOptionPane.showMessageDialog(PanelPedidos.this, resumen,
+                            "Resumen del despacho", JOptionPane.INFORMATION_MESSAGE);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException e) {
+                    // Aquí llegan también los errores de MySQL al guardar los
+                    // estados o al anotar las entregas, envueltos por el SwingWorker.
+                    Throwable causa = e.getCause() != null ? e.getCause() : e;
+                    mostrarError(causa.getMessage());
+                }
+            }
+        }.execute();
     }
 
     /**
@@ -309,8 +491,6 @@ public class PanelPedidos extends PanelSeccion {
             }
             refrescar();
         } catch (IllegalStateException | PersistenciaException ex) {
-            // Por ejemplo, cuando el pedido tiene entregas registradas: se avisa y
-            // la aplicación sigue funcionando.
             mostrarError(ex.getMessage());
         }
     }
@@ -326,6 +506,16 @@ public class PanelPedidos extends PanelSeccion {
             return null;
         }
         return pedidosMostrados.get(fila);
+    }
+
+    /**
+     * Avisa a la ventana principal que los datos cambiaron, para que las demás
+     * secciones también se pongan al día.
+     */
+    private void avisarCambio() {
+        if (alCambiar != null) {
+            alCambiar.run();
+        }
     }
 
     /**
